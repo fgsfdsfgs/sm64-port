@@ -323,7 +323,7 @@ static void gfx_ps2_set_scissor(int x, int y, int width, int height) {
     draw_set_scissor(r_clip.x0, r_clip.y0, r_clip.x1, r_clip.y1);
 }
 
-static inline void draw_set_blendmode(const u64 blend) {
+static inline void draw_set_blendmode(const u32 blend) {
     gs_global->PrimAlphaEnable = !!blend;
     gs_global->PrimAlpha = blend;
     gs_global->PABE = 0;
@@ -709,6 +709,7 @@ static void draw_triangles_tex_col_col(float buf_vbo[], const size_t buf_vbo_num
     update_tests(a_test, z_test + (z_test && z_decal) + 1);
 }
 
+<<<<<<< HEAD
 static void draw_triangles_tex_tex_col(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
     // draw base textire with plain white color
     draw_triangles_tex(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride);
@@ -752,6 +753,8 @@ static void draw_triangles_tex_tex_col(float buf_vbo[], const size_t buf_vbo_num
     update_tests(a_test, z_test + (z_test && z_decal) + 1);
 }
 
+=======
+>>>>>>> parent of 18deeb2 (implement the two-texture shader)
 static void gfx_ps2_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
     const size_t vtx_stride = buf_vbo_len / (buf_vbo_num_tris * 3);
     const size_t tri_stride = vtx_stride * 3;
@@ -775,9 +778,7 @@ static void gfx_ps2_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t b
         default:                   draw_triangles_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride, (cur_shader->num_inputs > 1)); break;
 =======
         if (cur_shader->num_inputs) {
-            if (cur_shader->used_textures[1])
-                draw_triangles_tex_tex_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride);
-            else if (cur_shader->tex_mode == TEXMODE_DECAL)
+            if (cur_shader->tex_mode == TEXMODE_DECAL)
                 draw_triangles_tex_col_decal(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride);
             else if (cur_shader->num_inputs > 1)
                 draw_triangles_tex_col_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride);
