@@ -46,8 +46,6 @@
 #define GFX_MANUAL_CLIPPING 1
 // premultiply XYZ by 1/w
 #define GFX_W_PREMULT 1
-// round UVs up if they are non power of two
-#define GFX_ROUND_NPOT_UV 1
 
 #define GFX_COLOR_CONV(x) ((x) >> 1)
 #define GFX_ALPHA_CONV(x) ((int)(x * 128.f) / 255)
@@ -88,9 +86,6 @@ enum {
     CLIP_ALL    = 63,
 };
 
-typedef float vec4[4]    __attribute__((__aligned__(16)));
-typedef float mat4[4][4] __attribute__((__aligned__(16)));
-
 union RGBA {
     struct { uint8_t r, g, b, a; };
     uint32_t rgba;
@@ -105,7 +100,7 @@ struct LoadedVertex {
     float u, v;
     union RGBA color;
     uint8_t clip_rej;
-} __attribute__((__aligned__(16)));
+};
 
 struct TextureHashmapNode {
     struct TextureHashmapNode *next;
@@ -134,15 +129,15 @@ static struct ColorCombiner color_combiner_pool[64];
 static uint8_t color_combiner_pool_size;
 
 static struct RSP {
-    mat4 modelview_matrix_stack[11];
+    float modelview_matrix_stack[11][4][4];
     uint8_t modelview_matrix_stack_size;
     
-    mat4 MP_matrix;
-    mat4 P_matrix;
+    float MP_matrix[4][4];
+    float P_matrix[4][4];
     
     Light_t current_lights[MAX_LIGHTS + 1];
-    vec4 current_lights_coeffs[MAX_LIGHTS];
-    vec4 current_lookat_coeffs[2]; // lookat_x, lookat_y
+    float current_lights_coeffs[MAX_LIGHTS][3];
+    float current_lookat_coeffs[2][3]; // lookat_x, lookat_y
     uint8_t current_num_lights; // includes ambient light
     bool lights_changed;
     
@@ -202,27 +197,12 @@ struct GfxDimensions gfx_current_dimensions;
 
 static bool dropped_frame;
 
-static float buf_vbo[MAX_BUFFERED * (26 * 3)] __attribute__((__aligned__(16))); // 3 vertices in a triangle and 26 floats per vtx
+static float buf_vbo[MAX_BUFFERED * (26 * 3)]; // 3 vertices in a triangle and 26 floats per vtx
 static size_t buf_vbo_len;
 static size_t buf_vbo_num_tris;
 
 static struct GfxWindowManagerAPI *gfx_wapi;
 static struct GfxRenderingAPI *gfx_rapi;
-
-static inline uint32_t next_pot(uint32_t v) {
-    v--;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    v++;
-    return v;
-}
-
-static inline uint32_t is_pot(const uint32_t v) {
-    return (v & (v - 1)) == 0;
-}
 
 static unsigned long get_time(void) {
     return 0;
@@ -607,81 +587,31 @@ static void import_texture(int tile) {
     //printf("Time diff: %d\n", t1 - t0);
 }
 
-static void gfx_normalize_vector(vec4 v) {
-#ifdef TARGET_PS2
-    asm __volatile__ (
-        "lqc2      vf1, 0x00(%1) \n"
-        "vmul.xyz  vf2, vf1, vf1 \n"
-        "vmulax.w  ACC, vf0, vf2 \n"
-        "vmadday.w ACC, vf0, vf2 \n"
-        "vmaddz.w  vf2, vf0, vf2 \n"
-        "vrsqrt    Q, vf0w, vf2w \n"
-        "vsub.w    vf1, vf0, vf0 \n"
-        "vwaitq                  \n"
-        "vmulq.xyz vf1, vf1, Q   \n"
-        "sqc2      vf1, 0x00(%0) \n"
-        : : "r" (v), "r" (v)
-    );
-#else
-    const float s = 1.f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-    v[0] *= s;
-    v[1] *= s;
-    v[2] *= s;
-#endif
+static void gfx_normalize_vector(float v[3]) {
+    float s = sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    v[0] /= s;
+    v[1] /= s;
+    v[2] /= s;
 }
 
-static void gfx_transposed_matrix_mul(vec4 res, const vec4 a, const mat4 b) {
+static void gfx_transposed_matrix_mul(float res[3], const float a[3], const float b[4][4]) {
     res[0] = a[0] * b[0][0] + a[1] * b[0][1] + a[2] * b[0][2];
     res[1] = a[0] * b[1][0] + a[1] * b[1][1] + a[2] * b[1][2];
     res[2] = a[0] * b[2][0] + a[1] * b[2][1] + a[2] * b[2][2];
 }
 
-static void calculate_normal_dir(const Light_t *light, vec4 coeffs) {
-    const vec4 light_dir = {
+static void calculate_normal_dir(const Light_t *light, float coeffs[3]) {
+    float light_dir[3] = {
         light->dir[0] / 127.0f,
         light->dir[1] / 127.0f,
-        light->dir[2] / 127.0f,
-        0.f
+        light->dir[2] / 127.0f
     };
     gfx_transposed_matrix_mul(coeffs, light_dir, rsp.modelview_matrix_stack[rsp.modelview_matrix_stack_size - 1]);
     gfx_normalize_vector(coeffs);
 }
 
-static void gfx_matrix_mul(mat4 res, const mat4 a, const mat4 b) {
-    mat4 tmp;
-#ifdef TARGET_PS2
-    asm __volatile__ (
-        "lqc2         vf1, 0x00(%1) \n"
-        "lqc2         vf2, 0x10(%1) \n"
-        "lqc2         vf3, 0x20(%1) \n"
-        "lqc2         vf4, 0x30(%1) \n"
-        "lqc2         vf5, 0x00(%2) \n"
-        "lqc2         vf6, 0x10(%2) \n"
-        "lqc2         vf7, 0x20(%2) \n"
-        "lqc2         vf8, 0x30(%2) \n"
-        "vmulax.xyzw  ACC, vf5, vf1 \n"
-        "vmadday.xyzw ACC, vf6, vf1 \n"
-        "vmaddaz.xyzw ACC, vf7, vf1 \n"
-        "vmaddw.xyzw  vf1, vf8, vf1 \n"
-        "vmulax.xyzw  ACC, vf5, vf2 \n"
-        "vmadday.xyzw ACC, vf6, vf2 \n"
-        "vmaddaz.xyzw ACC, vf7, vf2 \n"
-        "vmaddw.xyzw  vf2, vf8, vf2 \n"
-        "vmulax.xyzw  ACC, vf5, vf3 \n"
-        "vmadday.xyzw ACC, vf6, vf3 \n"
-        "vmaddaz.xyzw ACC, vf7, vf3 \n"
-        "vmaddw.xyzw  vf3, vf8, vf3 \n"
-        "vmulax.xyzw  ACC, vf5, vf4 \n"
-        "vmadday.xyzw ACC, vf6, vf4 \n"
-        "vmaddaz.xyzw ACC, vf7, vf4 \n"
-        "vmaddw.xyzw  vf4, vf8, vf4 \n"
-        "sqc2         vf1, 0x00(%0) \n"
-        "sqc2         vf2, 0x10(%0) \n"
-        "sqc2         vf3, 0x20(%0) \n"
-        "sqc2         vf4, 0x30(%0) \n"
-        : : "r" (tmp), "r" (a), "r" (b)
-    );
-#else
+static void gfx_matrix_mul(float res[4][4], const float a[4][4], const float b[4][4]) {
+    float tmp[4][4];
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
             tmp[i][j] = a[i][0] * b[0][j] +
@@ -690,7 +620,6 @@ static void gfx_matrix_mul(mat4 res, const mat4 a, const mat4 b) {
                         a[i][3] * b[3][j];
         }
     }
-#endif
     memcpy(res, tmp, sizeof(tmp));
 }
 
@@ -959,16 +888,8 @@ static inline void gfx_push_triangle(const struct LoadedVertex *restrict v1, con
 
     const bool linear_filter = (rdp.other_mode_h & (3U << G_MDSFT_TEXTFILT)) != G_TF_POINT;
     const bool use_texture = gfx_update_textures(used_textures, linear_filter);
-
-    int tex_width = (rdp.texture_tile.lrs - rdp.texture_tile.uls + 4) >> 2;
-    int tex_height = (rdp.texture_tile.lrt - rdp.texture_tile.ult + 4) >> 2;
-#ifdef GFX_ROUND_NPOT_UV
-    if (!is_pot(tex_width)) tex_width = next_pot(tex_width);
-    if (!is_pot(tex_height)) tex_height = next_pot(tex_height);
-#endif
-
-    const float inv_tex_width = 1.f / (float)tex_width;
-    const float inv_tex_height = 1.f / (float)tex_height;
+    const float inv_tex_width = 1.f / (float)((rdp.texture_tile.lrs - rdp.texture_tile.uls + 4) / 4);
+    const float inv_tex_height = 1.f / (float)((rdp.texture_tile.lrt - rdp.texture_tile.ult + 4) / 4);
 
     const bool z_is_from_0_to_1 = gfx_rapi->z_is_from_0_to_1();
 
