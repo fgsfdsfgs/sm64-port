@@ -312,7 +312,6 @@ static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, co
     }
     if (gfx_texture_cache.pool_pos == sizeof(gfx_texture_cache.pool) / sizeof(struct TextureHashmapNode)) {
         // Pool is full. We just invalidate everything and start over.
-        if (gfx_rapi->flush_textures) gfx_rapi->flush_textures();
         gfx_texture_cache.pool_pos = 0;
         node = &gfx_texture_cache.hashmap[hash];
         //puts("Clearing texture cache");
@@ -334,7 +333,7 @@ static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, co
     return false;
 }
 
-static inline void import_texture_rgba16_convert(const uint32_t width, const uint32_t height, const int tile) {
+static void import_texture_rgba16(int tile) {
     uint8_t rgba32_buf[8192];
 
     for (uint32_t i = 0; i < rdp.loaded_texture[tile].size_bytes / 2; i++) {
@@ -349,32 +348,10 @@ static inline void import_texture_rgba16_convert(const uint32_t width, const uin
         rgba32_buf[4*i + 3] = GFX_TEXALPHA_BOOL(a);
     }
     
+    uint32_t width = rdp.texture_tile.line_size_bytes / 2;
+    uint32_t height = rdp.loaded_texture[tile].size_bytes / rdp.texture_tile.line_size_bytes;
+    
     gfx_rapi->upload_texture(rgba32_buf, width, height);
-}
-
-static inline void import_texture_rgba16_swap(const uint32_t width, const uint32_t height, const int tile) {
-    uint16_t rgba16_buf[4096];
-
-    for (uint32_t i = 0; i < rdp.loaded_texture[tile].size_bytes / 2; i++) {
-        const uint16_t col16 = (rdp.loaded_texture[tile].addr[2 * i] << 8) | rdp.loaded_texture[tile].addr[2 * i + 1];
-        const uint8_t a = col16 & 1;
-        const uint8_t r = (col16 >> 11) & 0x1f;
-        const uint8_t g = (col16 >>  6) & 0x1f;
-        const uint8_t b = (col16 >>  1) & 0x1f;
-        rgba16_buf[i] = (a << 15)  | (b << 10)  | (g << 5) | (r);
-    }
-
-    gfx_rapi->upload_texture_ext(rgba16_buf, width, height, G_IM_FMT_RGBA, G_IM_SIZ_16b, NULL);
-}
-
-static void import_texture_rgba16(int tile) {
-    const uint32_t width = rdp.texture_tile.line_size_bytes / 2;
-    const uint32_t height = rdp.loaded_texture[tile].size_bytes / rdp.texture_tile.line_size_bytes;
-
-    if (gfx_rapi->upload_texture_ext)
-        import_texture_rgba16_swap(width, height, tile);
-    else
-        import_texture_rgba16_convert(width, height, tile);
 }
 
 static void import_texture_rgba32(int tile) {
