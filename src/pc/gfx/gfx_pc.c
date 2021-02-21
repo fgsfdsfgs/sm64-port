@@ -442,7 +442,7 @@ static void import_texture_ia8(int tile) {
     const uint32_t height = (rdp.texture_tile.cmt & G_TX_MIRROR) ? orig_height * 2 : orig_height;
     const uint8_t src_stride = orig_width;
 
-    register uint32_t src, dst = 0, src_base = 0, x;
+    register uint32_t src, dst = 0, src_base, x;
     
     for (uint32_t y = 0; y < height; ++y) {
         src = src_base;
@@ -458,7 +458,6 @@ static void import_texture_ia8(int tile) {
             rgba32_buf[dst + 2] = SCALE_4_8(b);
             rgba32_buf[dst + 3] = GFX_TEXALPHA_CONV(alpha);
         }
-        --src;
         for (x = orig_width; x < width; ++x, dst += 4, --src) {
             uint8_t intensity = rdp.loaded_texture[tile].addr[src] >> 4;
             uint8_t alpha = rdp.loaded_texture[tile].addr[src] & 0xf;
@@ -471,8 +470,8 @@ static void import_texture_ia8(int tile) {
             rgba32_buf[dst + 2] = SCALE_4_8(b);
             rgba32_buf[dst + 3] = GFX_TEXALPHA_CONV(alpha);
         }
-        if (y < orig_height - 1)   src_base += src_stride;
-        else if (y >= orig_height) src_base -= src_stride;
+        if (y < orig_height) src_base += src_stride;
+        else                 src_base -= src_stride;
     }
 #else
     for (uint32_t i = 0; i < rdp.loaded_texture[tile].size_bytes; i++) {
