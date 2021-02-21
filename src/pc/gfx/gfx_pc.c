@@ -48,8 +48,6 @@
 #define GFX_W_PREMULT 1
 // round UVs up if they are non power of two
 #define GFX_ROUND_NPOT_UV 1
-// rapi doesn't have mirrored repeat
-#define GFX_NO_MIRRORED_REPEAT 1
 
 #define GFX_COLOR_CONV(x) ((x) >> 1)
 #define GFX_ALPHA_CONV(x) ((int)(x * 128.f) / 255)
@@ -121,7 +119,7 @@ struct TextureHashmapNode {
 };
 static struct {
     struct TextureHashmapNode *hashmap[1024];
-    struct TextureHashmapNode pool[256];
+    struct TextureHashmapNode pool[512];
     uint32_t pool_pos;
 } gfx_texture_cache;
 
@@ -429,49 +427,8 @@ static void import_texture_ia4(int tile) {
 }
 
 static void import_texture_ia8(int tile) {
-    uint8_t rgba32_buf[32768];
-
-#ifdef GFX_NO_MIRRORED_REPEAT
-    // mirror the texture by hand
-
-    const uint32_t orig_width = rdp.texture_tile.line_size_bytes;
-    const uint32_t orig_height = rdp.loaded_texture[tile].size_bytes / rdp.texture_tile.line_size_bytes;
-    const uint32_t width = (rdp.texture_tile.cms & G_TX_MIRROR) ? orig_width * 2 : orig_width;
-    const uint32_t height = (rdp.texture_tile.cmt & G_TX_MIRROR) ? orig_height * 2 : orig_height;
-    const uint8_t src_stride = orig_width;
-
-    register uint32_t src, dst = 0, src_base, x;
+    uint8_t rgba32_buf[16384];
     
-    for (uint32_t y = 0; y < height; ++y) {
-        src = src_base;
-        for (x = 0; x < orig_width; ++x, dst += 4, ++src) {
-            uint8_t intensity = rdp.loaded_texture[tile].addr[src] >> 4;
-            uint8_t alpha = rdp.loaded_texture[tile].addr[src] & 0xf;
-            uint8_t r = intensity;
-            uint8_t g = intensity;
-            uint8_t b = intensity;
-            alpha = SCALE_4_8(alpha);
-            rgba32_buf[dst + 0] = SCALE_4_8(r);
-            rgba32_buf[dst + 1] = SCALE_4_8(g);
-            rgba32_buf[dst + 2] = SCALE_4_8(b);
-            rgba32_buf[dst + 3] = GFX_TEXALPHA_CONV(alpha);
-        }
-        for (x = orig_width; x < width; ++x, dst += 4, --src) {
-            uint8_t intensity = rdp.loaded_texture[tile].addr[src] >> 4;
-            uint8_t alpha = rdp.loaded_texture[tile].addr[src] & 0xf;
-            uint8_t r = intensity;
-            uint8_t g = intensity;
-            uint8_t b = intensity;
-            alpha = SCALE_4_8(alpha);
-            rgba32_buf[dst + 0] = SCALE_4_8(r);
-            rgba32_buf[dst + 1] = SCALE_4_8(g);
-            rgba32_buf[dst + 2] = SCALE_4_8(b);
-            rgba32_buf[dst + 3] = GFX_TEXALPHA_CONV(alpha);
-        }
-        if (y < orig_height) src_base += src_stride;
-        else                 src_base -= src_stride;
-    }
-#else
     for (uint32_t i = 0; i < rdp.loaded_texture[tile].size_bytes; i++) {
         uint8_t intensity = rdp.loaded_texture[tile].addr[i] >> 4;
         uint8_t alpha = rdp.loaded_texture[tile].addr[i] & 0xf;
@@ -487,7 +444,6 @@ static void import_texture_ia8(int tile) {
     
     uint32_t width = rdp.texture_tile.line_size_bytes;
     uint32_t height = rdp.loaded_texture[tile].size_bytes / rdp.texture_tile.line_size_bytes;
-#endif
     
     gfx_rapi->upload_texture(rgba32_buf, width, height);
 }
@@ -1004,16 +960,11 @@ static inline void gfx_push_triangle(const struct LoadedVertex *restrict v1, con
     const bool linear_filter = (rdp.other_mode_h & (3U << G_MDSFT_TEXTFILT)) != G_TF_POINT;
     const bool use_texture = gfx_update_textures(used_textures, linear_filter);
 
-    uint32_t tex_width = (rdp.texture_tile.lrs - rdp.texture_tile.uls + 4) >> 2;
-    uint32_t tex_height = (rdp.texture_tile.lrt - rdp.texture_tile.ult + 4) >> 2;
+    int tex_width = (rdp.texture_tile.lrs - rdp.texture_tile.uls + 4) >> 2;
+    int tex_height = (rdp.texture_tile.lrt - rdp.texture_tile.ult + 4) >> 2;
 #ifdef GFX_ROUND_NPOT_UV
     if (!is_pot(tex_width)) tex_width = next_pot(tex_width);
     if (!is_pot(tex_height)) tex_height = next_pot(tex_height);
-#endif
-
-#ifdef GFX_NO_MIRRORED_REPEAT
-    const bool mirror_u = (rdp.texture_tile.cms & G_TX_MIRROR);
-    const bool mirror_v = (rdp.texture_tile.cmt & G_TX_MIRROR);
 #endif
 
     const float inv_tex_width = 1.f / (float)tex_width;
@@ -1051,11 +1002,6 @@ static inline void gfx_push_triangle(const struct LoadedVertex *restrict v1, con
             }
             u *= inv_tex_width;
             v *= inv_tex_height;
-#ifdef GFX_NO_MIRRORED_REPEAT
-            // quads with mirror textures on them usually go (-1, +1)
-            if (mirror_u) u *= 0.5f;
-            if (mirror_v) v *= 0.5f;
-#endif
             buf_vbo[buf_vbo_len++] = GFX_OUT_COORD(u);
             buf_vbo[buf_vbo_len++] = GFX_OUT_COORD(v);
         }
