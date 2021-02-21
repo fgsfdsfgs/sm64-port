@@ -12,7 +12,7 @@
 
 #include "gfx_window_manager_api.h"
 #include "gfx_screen_config.h"
-#include "gfx_ps2.h"
+
 #define FRAMERATE_SHIFT 1
 #define FRAMESKIP 10
 
@@ -54,10 +54,9 @@ static bool do_render = true;
 
 static volatile unsigned int vblank_count = 0;
 static int vsync_callback_id = -1;
-volatile bool render_finished;
 
 static int vsync_callback(void) {
-    if (render_finished) gsKit_display_buffer(gs_global); // working buffer gets displayed
+    gsKit_display_buffer(gs_global); // working buffer gets displayed
 
     ++vblank_count;
 
@@ -91,7 +90,6 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
 
     window_width = gs_global->Width;
     window_height = gs_global->Height;
-    render_finished = true; //Prevents startup softlock
 }
 
 static void gfx_ps2_set_fullscreen_changed_callback(void (*on_fullscreen_changed)(bool is_now_fullscreen)) {

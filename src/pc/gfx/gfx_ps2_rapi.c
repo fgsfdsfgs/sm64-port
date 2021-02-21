@@ -21,7 +21,6 @@
 
 #include "gfx_rendering_api.h"
 #include "gfx_cc.h"
-#include "gfx_ps2.h" //For render_finished
 
 #define ALIGN(VAL_, ALIGNMENT_) (((VAL_) + ((ALIGNMENT_) - 1)) & ~((ALIGNMENT_) - 1))
 
@@ -141,8 +140,6 @@ static float z_offset = 0.f;
 
 static bool a_test = false;
 static bool do_blend = false;
-
-volatile bool render_finished;
 
 static const uint64_t c_white = GS_SETREG_RGBAQ(0x80, 0x80, 0x80, 0x80, 0x00);
 
@@ -1052,7 +1049,6 @@ static void gfx_ps2_on_resize(void) {
 }
 
 static void gfx_ps2_start_frame(void) {
-    render_finished = false;
     draw_clear(c_white);
 }
 
@@ -1061,7 +1057,6 @@ static void gfx_ps2_end_frame(void) {
 }
 
 static void gfx_ps2_finish_render(void) {
-    render_finished = true;
     gsKit_TexManager_nextFrame(gs_global);
     gsKit_queue_reset(gs_global->Os_Queue);
 }
