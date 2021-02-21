@@ -654,7 +654,7 @@ static void import_texture(int tile) {
 }
 
 static void gfx_normalize_vector(vec4 v) {
-#if defined(TARGET_PS2) && (__GNUC__ <= 3)
+#ifdef TARGET_PS2
     asm __volatile__ (
         "lqc2      vf1, 0x00(%1) \n"
         "vmul.xyz  vf2, vf1, vf1 \n"
@@ -695,7 +695,7 @@ static void calculate_normal_dir(const Light_t *light, vec4 coeffs) {
 
 static void gfx_matrix_mul(mat4 res, const mat4 a, const mat4 b) {
     mat4 tmp;
-#if defined(TARGET_PS2) && (__GNUC__ <= 3)
+#ifdef TARGET_PS2
     asm __volatile__ (
         "lqc2         vf1, 0x00(%1) \n"
         "lqc2         vf2, 0x10(%1) \n"
