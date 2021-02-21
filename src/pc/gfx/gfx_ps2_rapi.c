@@ -542,6 +542,7 @@ static inline void draw_triangles_tex_col(float buf_vbo[], const size_t buf_vbo_
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 static inline void draw_triangles_tex_col_texalpha(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
     ColorQ c0 = (ColorQ) { { 0x00, 0x00, 0x00, 0x80, 1.f } };
     ColorQ c1 = (ColorQ) { { 0x00, 0x00, 0x00, 0x80, 1.f } };
@@ -571,6 +572,8 @@ static inline void draw_triangles_tex_col_texalpha(float buf_vbo[], const size_t
 
 static inline void draw_triangles_col(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride, const size_t rgba_add) {
 =======
+=======
+>>>>>>> parent of 9d2fb54 (hackfix mirrored textures and transition screens)
 =======
 >>>>>>> parent of 9d2fb54 (hackfix mirrored textures and transition screens)
 static inline void draw_triangles_tex(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
