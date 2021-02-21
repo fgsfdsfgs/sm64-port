@@ -22,7 +22,7 @@
 #include "gfx_rendering_api.h"
 #include "gfx_cc.h"
 
-#define MAX_TEXTURES 1024
+#define MAX_TEXTURES 3072
 
 // GS_SETREG_ALPHA(A, B, C, D, FIX)
 // A = 0 = Cs
@@ -205,50 +205,29 @@ static void gfx_ps2_shader_get_info(struct ShaderProgram *prg, uint8_t *num_inpu
 
 
 static uint32_t gfx_ps2_new_texture(void) {
-    const uint32_t tid = tex_pool_size++;
-
-    struct Texture *tex = tex_pool + tid;
-
-    if (cur_tex[0] == tex) cur_tex[0] = NULL;
-    if (cur_tex[1] == tex) cur_tex[1] = NULL;
-    if (last_tex == tex) last_tex = NULL;
-
-    if (tex->tex.Vram) {
-        // this was probably already freed by gsKit_TexManager_init
-        tex->tex.Vram = 0;
-    }
-
-    if (tex->tex.Mem) {
-        free(tex->tex.Mem);
-        tex->tex.Mem = NULL;
-    }
-
-    return tid;
+    return tex_pool_size++;
 }
 
 static void gfx_ps2_select_texture(int tile, uint32_t texture_id) {
     cur_tex[tile] = last_tex = tex_pool + texture_id;
 }
 
-static void gfx_ps2_upload_texture_ext(const uint8_t *buf, int width, int height, int fmt, int bpp, const uint8_t *pal) {
+static void gfx_ps2_upload_texture(const uint8_t *rgba32_buf, int width, int height) {
     last_tex->tex.Width = width;
     last_tex->tex.Height = height;
+    last_tex->tex.PSM = GS_PSM_CT32;
     last_tex->tex.Filter = GS_FILTER_NEAREST;
 
-    if (fmt == G_IM_FMT_RGBA && bpp == G_IM_SIZ_16b)
-        last_tex->tex.PSM = GS_PSM_CT16; // RGBA5551
-    else if (fmt == G_IM_FMT_RGBA && bpp == G_IM_SIZ_32b)
-        last_tex->tex.PSM = GS_PSM_CT32; // RGBA8888
-
-    const int in_size = gsKit_texture_size_ee(width, height, last_tex->tex.PSM);
-    const int out_size = gsKit_texture_size(width, height, last_tex->tex.PSM);
+    const int in_size = gsKit_texture_size_ee(width, height, GS_PSM_CT32);
+    const int out_size = gsKit_texture_size(width, height, GS_PSM_CT32);
 
     last_tex->tex.Mem = memalign(128, in_size);
     if (!last_tex->tex.Mem) {
-        printf("gfx_ps2_upload_texture_ext(%p, %d, %d, %d, %d, %p) failed: out of RAM\n", buf, width, height, fmt, bpp, pal);
+        printf("gfx_ps2_upload_texture(%p, %d, %d) failed: out of RAM\n", rgba32_buf, width, height);
         return;
     }
 
+<<<<<<< HEAD
     memcpy(last_tex->tex.Mem, buf, in_size);
 }
 
@@ -261,6 +240,9 @@ static void gfx_ps2_flush_textures(void) {
     last_tex = NULL;
     gsKit_TexManager_init(gs_global); // clear VRAM
     tex_pool_size = 0; // return to start of pool, new_texture will handle the rest
+=======
+    memcpy(last_tex->tex.Mem, rgba32_buf, in_size);
+>>>>>>> parent of 269b689 (clear vram on texture cache flush)
 }
 
 static inline uint32_t cm_to_ps2(const uint32_t val) {
@@ -777,23 +759,7 @@ static void gfx_ps2_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t b
 
 static void gfx_ps2_init(void) {
     gsKit_mode_switch(gs_global, GS_ONESHOT);
-
     gs_global->Test->ZTST = 2;
-
-    // set alpha register for proper RGBA5551 alpha:
-    // TA0 = 0x00: alpha bit is 0 -> alpha is 0x00
-    // TA1 = 0x80: alpha bit is 1 -> alpha is 0x80
-
-    u64 *p_data = gsKit_heap_alloc(gs_global, 1, 16, GIF_AD);
-
-    *p_data++ = GIF_TAG_AD(1);
-    *p_data++ = GIF_AD;
-
-    *p_data++ = GS_SETREG_TEXA(0x00, 0, 0x80);
-    *p_data++ = GS_TEXA;
-
-    gsKit_queue_exec(gs_global);
-    gsKit_queue_reset(gs_global->Os_Queue);
 }
 
 static void gfx_ps2_on_resize(void) {
@@ -835,9 +801,7 @@ struct GfxRenderingAPI gfx_ps2_rapi = {
     gfx_ps2_on_resize,
     gfx_ps2_start_frame,
     gfx_ps2_end_frame,
-    gfx_ps2_finish_render,
-    gfx_ps2_upload_texture_ext,
-    gfx_ps2_flush_textures,
+    gfx_ps2_finish_render
 };
 
 
