@@ -161,8 +161,6 @@ static struct ShaderProgram *gfx_ps2_create_and_load_new_shader(uint32_t shader_
 
     if (shader_id == 0x01045A00 || shader_id == 0x01200A00 || shader_id == 0x0000038D)
         prg->tex_mode = TEXMODE_DECAL;
-    else if (shader_id == 0x01A00045)
-        prg->tex_mode = TEXMODE_REPLACE;
     else
         prg->tex_mode = TEXMODE_MODULATE;
 
@@ -413,7 +411,7 @@ static void gsKit_prim_triangle_goraud_texture_3d_st(GSGLOBAL *gsGlobal, GSTEXTU
     *p_data++ = GIF_TAG_TRIANGLE_GORAUD_TEXTURED(0);
     *p_data++ = GIF_TAG_TRIANGLE_GORAUD_TEXTURED_ST_REGS(gsGlobal->PrimContext);
 
-    const int replace = 0; // cur_shader->tex_mode == TEXMODE_REPLACE;
+    const int replace = cur_shader->tex_mode == TEXMODE_REPLACE;
     const int alpha = gsGlobal->PrimAlphaEnable;
 
     if (Texture->VramClut == 0) {
@@ -542,6 +540,7 @@ static inline void draw_triangles_tex_col(float buf_vbo[], const size_t buf_vbo_
     }
 }
 
+<<<<<<< HEAD
 static inline void draw_triangles_tex_col_texalpha(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
     ColorQ c0 = (ColorQ) { { 0x00, 0x00, 0x00, 0x80, 1.f } };
     ColorQ c1 = (ColorQ) { { 0x00, 0x00, 0x00, 0x80, 1.f } };
@@ -570,6 +569,9 @@ static inline void draw_triangles_tex_col_texalpha(float buf_vbo[], const size_t
 }
 
 static inline void draw_triangles_col(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride, const size_t rgba_add) {
+=======
+static inline void draw_triangles_tex(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
+>>>>>>> parent of 9d2fb54 (hackfix mirrored textures and transition screens)
     ColorQ c0 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
     ColorQ c1 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
     ColorQ c2 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
@@ -754,6 +756,7 @@ static void gfx_ps2_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t b
     if (cur_shader->used_textures[0]) {
         draw_set_clamp(cur_tex[0]->clamp_s, cur_tex[0]->clamp_t);
         gsKit_TexManager_bind(gs_global, &cur_tex[0]->tex);
+<<<<<<< HEAD
     }
 
     switch (cur_shader->draw_fn) {
@@ -764,6 +767,22 @@ static void gfx_ps2_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t b
         case DRAW_TEX0_COL0:       draw_triangles_tex_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride); break;
         case DRAW_TEX0:            draw_triangles_tex(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride); break;
         default:                   draw_triangles_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride, (cur_shader->num_inputs > 1)); break;
+=======
+        if (cur_shader->num_inputs) {
+            if (cur_shader->used_textures[1])
+                draw_triangles_tex_tex_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride);
+            else if (cur_shader->tex_mode == TEXMODE_DECAL)
+                draw_triangles_tex_col_decal(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride);
+            else if (cur_shader->num_inputs > 1)
+                draw_triangles_tex_col_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride);
+            else
+                draw_triangles_tex_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride);
+        } else {
+            draw_triangles_tex(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride);
+        }
+    } else if (cur_shader->num_inputs) {
+        draw_triangles_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride, (cur_shader->num_inputs > 1));
+>>>>>>> parent of 9d2fb54 (hackfix mirrored textures and transition screens)
     }
 }
 
