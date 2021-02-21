@@ -22,10 +22,7 @@
 #include "gfx_rendering_api.h"
 #include "gfx_cc.h"
 
-#define ALIGN(VAL_, ALIGNMENT_) (((VAL_) + ((ALIGNMENT_) - 1)) & ~((ALIGNMENT_) - 1))
-
-#define MAX_TEXTURES 512
-#define TEXCACHE_SIZE (2 * 1024 * 1024)
+#define MAX_TEXTURES 1024
 
 // GS_SETREG_ALPHA(A, B, C, D, FIX)
 // A = 0 = Cs
@@ -119,10 +116,6 @@ struct Clip {
 static struct ShaderProgram shader_program_pool[64];
 static uint8_t shader_program_pool_size;
 static struct ShaderProgram *cur_shader;
-
-static uint8_t *tex_cache;
-static uint8_t *tex_cache_ptr;
-static uint8_t *tex_cache_end;
 
 static struct Texture tex_pool[MAX_TEXTURES];
 static uint32_t tex_pool_size;
@@ -231,10 +224,13 @@ static uint32_t gfx_ps2_new_texture(void) {
 
     if (tex->tex.Vram) {
         // this was probably already freed by gsKit_TexManager_init
-        gsKit_TexManager_invalidate(gs_global, &tex->tex);
+        tex->tex.Vram = 0;
     }
 
-    tex->tex.Mem = NULL;
+    if (tex->tex.Mem) {
+        free(tex->tex.Mem);
+        tex->tex.Mem = NULL;
+    }
 
     return tid;
 }
@@ -253,17 +249,14 @@ static void gfx_ps2_upload_texture_ext(const uint8_t *buf, int width, int height
     else if (fmt == G_IM_FMT_RGBA && bpp == G_IM_SIZ_32b)
         last_tex->tex.PSM = GS_PSM_CT32; // RGBA8888
 
-    const uint32_t in_size = gsKit_texture_size_ee(width, height, last_tex->tex.PSM);
-    // DMA has to copy from a 128-aligned address; cache base is 128-aligned, so we just align size to 128
-    const uint32_t aligned_size = ALIGN(in_size, 128);
+    const int in_size = gsKit_texture_size_ee(width, height, last_tex->tex.PSM);
+    const int out_size = gsKit_texture_size(width, height, last_tex->tex.PSM);
 
-    if (tex_cache_ptr + aligned_size > tex_cache_end) {
-        printf("gfx_ps2_upload_texture_ext(%p, %d, %d, %d, %d, %p): out of cache space!\n", buf, width, height, fmt, bpp, pal);
-        tex_cache_ptr = tex_cache; // whatever, just continue from start
+    last_tex->tex.Mem = memalign(128, in_size);
+    if (!last_tex->tex.Mem) {
+        printf("gfx_ps2_upload_texture_ext(%p, %d, %d, %d, %d, %p) failed: out of RAM\n", buf, width, height, fmt, bpp, pal);
+        return;
     }
-
-    last_tex->tex.Mem = (void *)tex_cache_ptr;
-    tex_cache_ptr += aligned_size;
 
     memcpy(last_tex->tex.Mem, buf, in_size);
 }
@@ -275,9 +268,8 @@ static void gfx_ps2_upload_texture(const uint8_t *rgba32_buf, int width, int hei
 static void gfx_ps2_flush_textures(void) {
     cur_tex[0] = cur_tex[1] = NULL;
     last_tex = NULL;
-    gsKit_vram_clear(gs_global); // clear VRAM
+    gsKit_TexManager_init(gs_global); // clear VRAM
     tex_pool_size = 0; // return to start of pool, new_texture will handle the rest
-    tex_cache_ptr = tex_cache; // reset texture cache as well
 }
 
 static inline uint32_t cm_to_ps2(const uint32_t val) {
@@ -1033,15 +1025,6 @@ static void gfx_ps2_init(void) {
 
     gsKit_queue_exec(gs_global);
     gsKit_queue_reset(gs_global->Os_Queue);
-
-    // allocate texture cache
-    tex_cache = memalign(128, TEXCACHE_SIZE);
-    if (!tex_cache) {
-        printf("gfx_ps2_init(): could not alloc %u byte texture cache\n", TEXCACHE_SIZE);
-        abort();
-    }
-    tex_cache_end = tex_cache + TEXCACHE_SIZE;
-    tex_cache_ptr = tex_cache;
 }
 
 static void gfx_ps2_on_resize(void) {
