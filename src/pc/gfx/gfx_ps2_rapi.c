@@ -495,24 +495,6 @@ static void draw_clear(const u64 color) {
     if (r_clip.x0 || r_clip.y0) draw_set_scissor(r_clip.x0, r_clip.y0, r_clip.x1, r_clip.y1); // restore clip
 }
 
-static void draw_set_clamp(const u32 clamp_s, const u32 clamp_t) {
-    gs_global->Clamp->WMS = clamp_s;
-    gs_global->Clamp->WMT = clamp_t;
-
-    u64 *p_data = gsKit_heap_alloc(gs_global, 1, 16, GIF_AD);
-
-    *p_data++ = GIF_TAG_AD(1);
-    *p_data++ = GIF_AD;
-
-    *p_data++ = GS_SETREG_CLAMP(
-        gs_global->Clamp->WMS, gs_global->Clamp->WMT,
-        gs_global->Clamp->MINU, gs_global->Clamp->MAXU,
-        gs_global->Clamp->MINV, gs_global->Clamp->MAXV
-    );
-
-    *p_data++ = GS_CLAMP_1 + gs_global->PrimContext;
-}
-
 static inline void draw_triangles_tex_col(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
     ColorQ c0 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
     ColorQ c1 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
@@ -763,7 +745,7 @@ static void gfx_ps2_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t b
     update_tests(a_test, z_test + zge + 1);
 
     if (cur_shader->used_textures[0]) {
-        draw_set_clamp(cur_tex[0]->clamp_s, cur_tex[0]->clamp_t);
+        gsKit_set_clamp(gs_global, cur_tex[0]->clamp_s);
         gsKit_TexManager_bind(gs_global, &cur_tex[0]->tex);
 <<<<<<< HEAD
     }
