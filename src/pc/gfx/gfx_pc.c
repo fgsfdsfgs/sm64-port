@@ -50,8 +50,6 @@
 #define GFX_ROUND_NPOT_UV 1
 // rapi doesn't have mirrored repeat
 #define GFX_NO_MIRRORED_REPEAT 1
-// only store fog intensity
-#define GFX_FOG_INTENSITY_ONLY 1
 
 #define GFX_COLOR_CONV(x) ((x) >> 1)
 #define GFX_ALPHA_CONV(x) ((int)(x * 128.f) / 255)
@@ -1063,13 +1061,14 @@ static inline void gfx_push_triangle(const struct LoadedVertex *restrict v1, con
         }
 
         if (use_fog) {
-#ifdef GFX_FOG_INTENSITY_ONLY
-            buf_vbo[buf_vbo_len++] = 255.f - (float)v_arr[i]->color.a; // fog factor (not alpha)
+#ifdef GFX_PACK_COLORS
+            rdp.fog_color.a = v_arr[i]->color.a;
+            ((uint32_t *)buf_vbo)[buf_vbo_len++] = rdp.fog_color.rgba;
 #else
-            buf_vbo[buf_vbo_len++] = GFX_COLOR_CONV(rdp.fog_color.r);
-            buf_vbo[buf_vbo_len++] = GFX_COLOR_CONV(rdp.fog_color.g);
-            buf_vbo[buf_vbo_len++] = GFX_COLOR_CONV(rdp.fog_color.b);
-            buf_vbo[buf_vbo_len++] = GFX_COLOR_CONV(v_arr[i]->color.a); // fog factor (not alpha)
+            buf_vbo[buf_vbo_len++] = rdp.fog_color.r;
+            buf_vbo[buf_vbo_len++] = rdp.fog_color.g;
+            buf_vbo[buf_vbo_len++] = rdp.fog_color.b;
+            buf_vbo[buf_vbo_len++] = v_arr[i]->color.a; // fog factor (not alpha)
 #endif
         }
 
@@ -1162,7 +1161,7 @@ static inline union RGBA rgba_lerp(const union RGBA c0, const union RGBA c1, con
         c0.r + (c1.r - c0.r) * t,
         c0.g + (c1.g - c0.g) * t,
         c0.b + (c1.b - c0.b) * t,
-        c0.a + (c1.a - c0.a) * t,
+        c0.a + (c0.a - c0.a) * t,
     }};
 }
 
@@ -1544,8 +1543,6 @@ static void gfx_dp_set_fog_color(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     rdp.fog_color.g = g;
     rdp.fog_color.b = b;
     rdp.fog_color.a = a;
-    if (gfx_rapi->set_fog_color)
-        gfx_rapi->set_fog_color(r, g, b);
 }
 
 static void gfx_dp_set_fill_color(uint32_t packed_color) {

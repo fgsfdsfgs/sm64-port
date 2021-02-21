@@ -41,10 +41,6 @@
 // RGB = (A - B) * C + D = Cs * Ad + Cd -> additive-ish blending
 #define BMODE_ADD   GS_SETREG_ALPHA(0, 2, 1, 1, 128)
 
-#define GS_SETREG_FOGCOL(R,G,B) \
-    (u64)((R) & 0x000000FF) <<  0 | (u64)((G) & 0x000000FF) <<  8 | \
-    (u64)((B) & 0x000000FF) << 16
-
 extern GSGLOBAL *gs_global;
 
 enum TexMode {
@@ -55,11 +51,8 @@ enum TexMode {
 
 enum DrawFunc {
     DRAW_COL0,
-    DRAW_COL0_FOG,
     DRAW_TEX0,
-    DRAW_TEX0_FOG,
     DRAW_TEX0_COL0,
-    DRAW_TEX0_COL0_FOG,
     DRAW_TEX0_COL0_DECAL,
     DRAW_TEX0_COL0_TEXA,
     DRAW_TEX0_COL0_COL1,
@@ -184,12 +177,12 @@ static struct ShaderProgram *gfx_ps2_create_and_load_new_shader(uint32_t shader_
             else if (prg->num_inputs > 1)
                 prg->draw_fn = DRAW_TEX0_COL0_COL1;
             else
-                prg->draw_fn = prg->use_fog ? DRAW_TEX0_COL0_FOG : DRAW_TEX0_COL0;
+                prg->draw_fn = DRAW_TEX0_COL0;
         } else {
-            prg->draw_fn = prg->use_fog ? DRAW_TEX0_FOG : DRAW_TEX0;
+            prg->draw_fn = DRAW_TEX0;
         }
     } else if (prg->num_inputs) {
-        prg->draw_fn = prg->use_fog ? DRAW_COL0_FOG : DRAW_COL0;
+        prg->draw_fn = DRAW_COL0;
     }
 
     gfx_ps2_load_shader(prg);
@@ -351,16 +344,6 @@ static void gfx_ps2_set_use_alpha(bool use_alpha) {
     draw_set_blendmode(do_blend ? BMODE_BLEND : 0);
 }
 
-static void gfx_ps2_set_fog_color(const uint8_t r, const uint8_t g, const uint8_t b) {
-    u64 *p_data = gsKit_heap_alloc(gs_global, 1, 16, GIF_AD);
-
-    *p_data++ = GIF_TAG_AD(1);
-    *p_data++ = GIF_AD;
-
-    *p_data++ = GS_SETREG_FOGCOL(r, g, b);
-    *p_data++ = GS_FOGCOL;
-}
-
 static inline void viewport_transform(float *v) {
     v[0] = v[0] *  r_view.hw + r_view.cx;
     v[1] = v[1] * -r_view.hh + r_view.cy;
@@ -383,33 +366,6 @@ static inline void viewport_transform(float *v) {
     ((u64)(GS_XYZ2)         << 40) | \
     ((u64)(GIF_NOP)         << 44)
 
-
-#define GIF_TAG_TRIANGLE_GORAUD_TEXTURED_ST_FOG_REGS(ctx) \
-    ((u64)(GS_TEX0_1 + ctx) << 0 ) | \
-    ((u64)(GS_PRIM)         << 4 ) | \
-    ((u64)(GS_RGBAQ)        << 8 ) | \
-    ((u64)(GS_ST)           << 12) | \
-    ((u64)(GS_XYZF2)        << 16) | \
-    ((u64)(GS_RGBAQ)        << 20) | \
-    ((u64)(GS_ST)           << 24) | \
-    ((u64)(GS_XYZF2)        << 28) | \
-    ((u64)(GS_RGBAQ)        << 32) | \
-    ((u64)(GS_ST)           << 36) | \
-    ((u64)(GS_XYZF2)        << 40) | \
-    ((u64)(GIF_NOP)         << 44)
-
-// this is the same as the TRIANGLE_GORAUD primitive, but with XYZF
-
-#define GIF_TAG_TRIANGLE_GOURAUD_FOG_REGS \
-    ((u64)(GS_PRIM)  << 0)  | \
-    ((u64)(GS_RGBAQ) << 4)  | \
-    ((u64)(GS_XYZF2) << 8)  | \
-    ((u64)(GS_RGBAQ) << 12) | \
-    ((u64)(GS_XYZF2) << 16) | \
-    ((u64)(GS_RGBAQ) << 20) | \
-    ((u64)(GS_XYZF2) << 24) | \
-    ((u64)(GIF_NOP)  << 28)
-
 static inline u32 lzw(u32 val) {
     u32 res;
     __asm__ __volatile__ ("   plzcw   %0, %1    " : "=r" (res) : "r" (val));
@@ -427,18 +383,16 @@ static inline void gsKit_set_tw_th(const GSTEXTURE *Texture, int *tw, int *th) {
 }
 
 
-static void gsKit_prim_triangle_goraud_texture_3d_st(
-    GSGLOBAL *gsGlobal, GSTEXTURE *Texture,
-    float x1, float y1, int iz1, float u1, float v1,
-    float x2, float y2, int iz2, float u2, float v2,
-    float x3, float y3, int iz3, float u3, float v3,
-    u64 color1, u64 color2, u64 color3
-) {
+static void gsKit_prim_triangle_goraud_texture_3d_st(GSGLOBAL *gsGlobal, GSTEXTURE *Texture,
+                float x1, float y1, int iz1, float u1, float v1,
+                float x2, float y2, int iz2, float u2, float v2,
+                float x3, float y3, int iz3, float u3, float v3,
+                u64 color1, u64 color2, u64 color3) {
     gsKit_set_texfilter(gsGlobal, Texture->Filter);
     u64* p_store;
     u64* p_data;
-    const int qsize = 6;
-    const int bsize = 96;
+    int qsize = 6;
+    int bsize = 96;
 
     int tw, th;
     gsKit_set_tw_th(Texture, &tw, &th);
@@ -490,113 +444,7 @@ static void gsKit_prim_triangle_goraud_texture_3d_st(
     *p_data++ = GS_SETREG_XYZ2( ix3, iy3, iz3 );
 }
 
-static void gsKit_prim_triangle_gouraud_3d_fog(
-    GSGLOBAL *gsGlobal, float x1, float y1, int iz1,
-    float x2, float y2, int iz2,
-    float x3, float y3, int iz3,
-    u64 color1, u64 color2, u64 color3,
-    u8 fog1, u8 fog2, u8 fog3
-) {
-    u64* p_store;
-    u64* p_data;
-    const int qsize = 4;
-    const int bsize = 64;
-
-    int ix1 = gsKit_float_to_int_x(gsGlobal, x1);
-    int iy1 = gsKit_float_to_int_y(gsGlobal, y1);
-
-    int ix2 = gsKit_float_to_int_x(gsGlobal, x2);
-    int iy2 = gsKit_float_to_int_y(gsGlobal, y2);
-
-    int ix3 = gsKit_float_to_int_x(gsGlobal, x3);
-    int iy3 = gsKit_float_to_int_y(gsGlobal, y3);
-
-    p_store = p_data = gsKit_heap_alloc(gsGlobal, qsize, bsize, GSKIT_GIF_PRIM_TRIANGLE_GOURAUD);
-
-    if (p_store == gsGlobal->CurQueue->last_tag) {
-        *p_data++ = GIF_TAG_TRIANGLE_GOURAUD(0);
-        *p_data++ = GIF_TAG_TRIANGLE_GOURAUD_FOG_REGS;
-    }
-
-    *p_data++ = GS_SETREG_PRIM( GS_PRIM_PRIM_TRIANGLE, 1, 0, gsGlobal->PrimFogEnable,
-                gsGlobal->PrimAlphaEnable, gsGlobal->PrimAAEnable,
-                0, gsGlobal->PrimContext, 0) ;
-
-    *p_data++ = color1;
-    *p_data++ = GS_SETREG_XYZF2(ix1, iy1, iz1, fog1);
-
-    *p_data++ = color2;
-    *p_data++ = GS_SETREG_XYZF2(ix2, iy2, iz2, fog2);
-
-    *p_data++ = color3;
-    *p_data++ = GS_SETREG_XYZF2(ix3, iy3, iz3, fog3);
-}
-
-static void gsKit_prim_triangle_goraud_texture_3d_st_fog(
-    GSGLOBAL *gsGlobal, GSTEXTURE *Texture,
-    float x1, float y1, int iz1, float u1, float v1,
-    float x2, float y2, int iz2, float u2, float v2,
-    float x3, float y3, int iz3, float u3, float v3,
-    u64 color1, u64 color2, u64 color3,
-    u8 fog1, u8 fog2, u8 fog3
-) {
-    gsKit_set_texfilter(gsGlobal, Texture->Filter);
-    u64* p_store;
-    u64* p_data;
-    int qsize = 6;
-    int bsize = 96;
-
-    int tw, th;
-    gsKit_set_tw_th(Texture, &tw, &th);
-
-    int ix1 = gsKit_float_to_int_x(gsGlobal, x1);
-    int ix2 = gsKit_float_to_int_x(gsGlobal, x2);
-    int ix3 = gsKit_float_to_int_x(gsGlobal, x3);
-    int iy1 = gsKit_float_to_int_y(gsGlobal, y1);
-    int iy2 = gsKit_float_to_int_y(gsGlobal, y2);
-    int iy3 = gsKit_float_to_int_y(gsGlobal, y3);
-
-    TexCoord st1 = (TexCoord) { { u1, v1 } };
-    TexCoord st2 = (TexCoord) { { u2, v2 } };
-    TexCoord st3 = (TexCoord) { { u3, v3 } };
-
-    p_store = p_data = gsKit_heap_alloc(gsGlobal, qsize, bsize, GSKIT_GIF_PRIM_TRIANGLE_TEXTURED);
-
-    *p_data++ = GIF_TAG_TRIANGLE_GORAUD_TEXTURED(0);
-    *p_data++ = GIF_TAG_TRIANGLE_GORAUD_TEXTURED_ST_FOG_REGS(gsGlobal->PrimContext);
-
-    const int replace = 0; // cur_shader->tex_mode == TEXMODE_REPLACE;
-    const int alpha = gsGlobal->PrimAlphaEnable;
-
-    if (Texture->VramClut == 0) {
-        *p_data++ = GS_SETREG_TEX0(Texture->Vram/256, Texture->TBW, Texture->PSM,
-            tw, th, alpha, replace,
-            0, 0, 0, 0, GS_CLUT_STOREMODE_NOLOAD);
-    } else {
-        *p_data++ = GS_SETREG_TEX0(Texture->Vram/256, Texture->TBW, Texture->PSM,
-            tw, th, alpha, replace,
-            Texture->VramClut/256, Texture->ClutPSM, 0, 0, GS_CLUT_STOREMODE_LOAD);
-    }
-
-    *p_data++ = GS_SETREG_PRIM( GS_PRIM_PRIM_TRIANGLE, 1, 1, gsGlobal->PrimFogEnable,
-                gsGlobal->PrimAlphaEnable, gsGlobal->PrimAAEnable,
-                0, gsGlobal->PrimContext, 0);
-
-
-    *p_data++ = color1;
-    *p_data++ = st1.word;
-    *p_data++ = GS_SETREG_XYZF2( ix1, iy1, iz1, fog1 );
-
-    *p_data++ = color2;
-    *p_data++ = st2.word;
-    *p_data++ = GS_SETREG_XYZF2( ix2, iy2, iz2, fog2 );
-
-    *p_data++ = color3;
-    *p_data++ = st3.word;
-    *p_data++ = GS_SETREG_XYZF2( ix3, iy3, iz3, fog3 );
-}
-
-static inline void draw_update_env(const bool atest, const int ztest, const bool fog) {
+static inline void update_tests(const bool atest, const int ztest) {
     if (atest) {
         gs_global->Test->ATE = 1;
         gs_global->Test->ATST = 6; // ATEST_METHOD_GREATER
@@ -607,7 +455,6 @@ static inline void draw_update_env(const bool atest, const int ztest, const bool
     }
 
     gs_global->Test->ZTST = ztest; // 1 is ALLPASS, 2 is GREATER
-    gs_global->PrimFogEnable = fog;
 
     u64 *p_data = gsKit_heap_alloc(gs_global, 1, 16, GIF_AD);
 
@@ -628,7 +475,7 @@ static void draw_clear(const u64 color) {
     const bool old_tests = z_test || a_test;
 
     if (old_zmask) gfx_ps2_set_depth_mask(true); // write Z on clear
-    if (old_tests) draw_update_env(0, 1, false); // no alpha test, zpass=ALWAYS, no fog
+    if (old_tests) update_tests(0, 1); // no alpha test, zpass=ALWAYS
     if (r_clip.x0 || r_clip.y0) draw_set_scissor(0, 0, gs_global->Width - 1, gs_global->Height - 1); // clear whole screen
 
     u8 strips = gs_global->Width >> 6;
@@ -646,7 +493,7 @@ static void draw_clear(const u64 color) {
         gsKit_prim_sprite(gs_global, pos, 0, remain + pos, gs_global->Height, 0, color);
 
     if (old_zmask) gfx_ps2_set_depth_mask(false); // mask Z again
-    if (old_tests) draw_update_env(a_test, z_test + (z_test && z_decal) + 1, false); // restore old tests
+    if (old_tests) update_tests(a_test, z_test + (z_test && z_decal) + 1); // restore old tests
     if (r_clip.x0 || r_clip.y0) draw_set_scissor(r_clip.x0, r_clip.y0, r_clip.x1, r_clip.y1); // restore clip
 }
 
@@ -677,7 +524,7 @@ static inline void draw_triangles_tex_col(float buf_vbo[], const size_t buf_vbo_
     register float *p = buf_vbo;
     register size_t i;
 
-    const int cofs = 6;
+    const int cofs = cur_shader->use_fog ? 7 : 6;
     for (i = 0; i < buf_vbo_num_tris; ++i, p += tri_stride) {
         v0 = p + 0;           viewport_transform(v0);
         v1 = v0 + vtx_stride; viewport_transform(v1);
@@ -695,34 +542,6 @@ static inline void draw_triangles_tex_col(float buf_vbo[], const size_t buf_vbo_
     }
 }
 
-static inline void draw_triangles_tex_col_fog(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
-    ColorQ c0 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
-    ColorQ c1 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
-    ColorQ c2 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
-
-    register float *v0, *v1, *v2;
-    register float *p = buf_vbo;
-    register size_t i;
-
-    const int cofs = 7;
-    for (i = 0; i < buf_vbo_num_tris; ++i, p += tri_stride) {
-        v0 = p + 0;           viewport_transform(v0);
-        v1 = v0 + vtx_stride; viewport_transform(v1);
-        v2 = v1 + vtx_stride; viewport_transform(v2);
-        c0.rgba = ((u32 *)v0)[cofs]; c0.q = v0[3];
-        c1.rgba = ((u32 *)v1)[cofs]; c1.q = v1[3];
-        c2.rgba = ((u32 *)v2)[cofs]; c2.q = v2[3];
-        gsKit_prim_triangle_goraud_texture_3d_st_fog(
-            gs_global, &cur_tex[0]->tex,
-            v0[0], v0[1], v0[2], v0[4], v0[5],
-            v1[0], v1[1], v1[2], v1[4], v1[5],
-            v2[0], v2[1], v2[2], v2[4], v2[5],
-            c0.word, c1.word, c2.word,
-            v0[6], v1[6], v2[6]
-        );
-    }
-}
-
 static inline void draw_triangles_tex_col_texalpha(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
     ColorQ c0 = (ColorQ) { { 0x00, 0x00, 0x00, 0x80, 1.f } };
     ColorQ c1 = (ColorQ) { { 0x00, 0x00, 0x00, 0x80, 1.f } };
@@ -732,7 +551,7 @@ static inline void draw_triangles_tex_col_texalpha(float buf_vbo[], const size_t
     register float *p = buf_vbo;
     register size_t i;
 
-    const int cofs = 6;
+    const int cofs = cur_shader->use_fog ? 7 : 6;
     for (i = 0; i < buf_vbo_num_tris; ++i, p += tri_stride) {
         v0 = p + 0;           viewport_transform(v0);
         v1 = v0 + vtx_stride; viewport_transform(v1);
@@ -759,7 +578,7 @@ static inline void draw_triangles_col(float buf_vbo[], const size_t buf_vbo_num_
     register float *p = buf_vbo;
     register size_t i;
 
-    const int cofs = 4 + rgba_add;
+    const int cofs = 4 + cur_shader->use_fog + rgba_add;
     for (i = 0; i < buf_vbo_num_tris; ++i, p += tri_stride) {
         v0 = p + 0;           viewport_transform(v0);
         v1 = v0 + vtx_stride; viewport_transform(v1);
@@ -773,34 +592,6 @@ static inline void draw_triangles_col(float buf_vbo[], const size_t buf_vbo_num_
             v1[0], v1[1], v1[2],
             v2[0], v2[1], v2[2],
             c0.word, c1.word, c2.word
-        );
-    }
-}
-
-static inline void draw_triangles_col_fog(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride, const size_t rgba_add) {
-    ColorQ c0 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
-    ColorQ c1 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
-    ColorQ c2 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
-
-    register float *v0, *v1, *v2;
-    register float *p = buf_vbo;
-    register size_t i;
-
-    const int cofs = 5 + rgba_add;
-    for (i = 0; i < buf_vbo_num_tris; ++i, p += tri_stride) {
-        v0 = p + 0;           viewport_transform(v0);
-        v1 = v0 + vtx_stride; viewport_transform(v1);
-        v2 = v1 + vtx_stride; viewport_transform(v2);
-        c0.rgba = ((u32 *)v0)[cofs]; c0.q = v0[3];
-        c1.rgba = ((u32 *)v1)[cofs]; c1.q = v1[3];
-        c2.rgba = ((u32 *)v2)[cofs]; c2.q = v2[3];
-        gsKit_prim_triangle_gouraud_3d_fog(
-            gs_global,
-            v0[0], v0[1], v0[2],
-            v1[0], v1[1], v1[2],
-            v2[0], v2[1], v2[2],
-            c0.word, c1.word, c2.word,
-            v0[4], v1[4], v2[4]
         );
     }
 }
@@ -831,33 +622,6 @@ static void draw_triangles_tex(float buf_vbo[], const size_t buf_vbo_num_tris, c
     }
 }
 
-static void draw_triangles_tex_fog(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
-    ColorQ c0 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
-    ColorQ c1 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
-    ColorQ c2 = (ColorQ) { { 0x80, 0x80, 0x80, 0x80, 1.f } };
-
-    register float *v0, *v1, *v2;
-    register float *p = buf_vbo;
-    register size_t i;
-
-    for (i = 0; i < buf_vbo_num_tris; ++i, p += tri_stride) {
-        v0 = p + 0;           viewport_transform(v0);
-        v1 = v0 + vtx_stride; viewport_transform(v1);
-        v2 = v1 + vtx_stride; viewport_transform(v2);
-        c0.q = v0[3];
-        c1.q = v1[3];
-        c2.q = v2[3];
-        gsKit_prim_triangle_goraud_texture_3d_st_fog(
-            gs_global, &cur_tex[0]->tex,
-            v0[0], v0[1], v0[2], v0[4], v0[5],
-            v1[0], v1[1], v1[2], v1[4], v1[5],
-            v2[0], v2[1], v2[2], v2[4], v2[5],
-            c0.word, c1.word, c2.word,
-            v0[6], v1[6], v2[6]
-        );
-    }
-}
-
 static void draw_triangles_tex_col_decal(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
     // draw color base, color offset is 2 because we skip UVs
     draw_triangles_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride, 2);
@@ -865,7 +629,7 @@ static void draw_triangles_tex_col_decal(float buf_vbo[], const size_t buf_vbo_n
     // alpha test on, blending on, ztest to GEQUAL
     const bool old_blend = do_blend;
     if (!old_blend) gfx_ps2_set_use_alpha(true);
-    draw_update_env(a_test, 2, cur_shader->use_fog);
+    update_tests(a_test, 2);
 
     // draw texture with blending on top, don't need to transform this time
 
@@ -895,7 +659,7 @@ static void draw_triangles_tex_col_decal(float buf_vbo[], const size_t buf_vbo_n
 
     // restore old state
     if (!old_blend) gfx_ps2_set_use_alpha(false);
-    draw_update_env(a_test, z_test + (z_test && z_decal) + 1, cur_shader->use_fog);
+    update_tests(a_test, z_test + (z_test && z_decal) + 1);
 }
 
 static void draw_triangles_tex_col_col(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
@@ -904,7 +668,7 @@ static void draw_triangles_tex_col_col(float buf_vbo[], const size_t buf_vbo_num
 
     // alpha test off, special blending on, ztest to GEQUAL
     draw_set_blendmode(BMODE_ADD);
-    draw_update_env(0, 2, cur_shader->use_fog);
+    update_tests(0, 2);
 
     // draw texture with blending on top, don't need to transform this time
 
@@ -934,7 +698,7 @@ static void draw_triangles_tex_col_col(float buf_vbo[], const size_t buf_vbo_num
 
     // restore old state
     gfx_ps2_set_use_alpha(do_blend);
-    draw_update_env(a_test, z_test + (z_test && z_decal) + 1, cur_shader->use_fog);
+    update_tests(a_test, z_test + (z_test && z_decal) + 1);
 }
 
 static void draw_triangles_tex_tex_col(float buf_vbo[], const size_t buf_vbo_num_tris, const size_t vtx_stride, const size_t tri_stride) {
@@ -943,7 +707,7 @@ static void draw_triangles_tex_tex_col(float buf_vbo[], const size_t buf_vbo_num
 
     // alpha test off, blending on, ztest to GEQUAL
     if (!do_blend) draw_set_blendmode(BMODE_BLEND);
-    draw_update_env(0, 2, cur_shader->use_fog);
+    update_tests(0, 2);
 
     // draw second texture with blending on top, don't need to transform this time
     // however use color as alpha, since alpha is fixed at 1 in that shader
@@ -977,7 +741,7 @@ static void draw_triangles_tex_tex_col(float buf_vbo[], const size_t buf_vbo_num
 
     // restore old state
     if (!do_blend) gfx_ps2_set_use_alpha(false);
-    draw_update_env(a_test, z_test + (z_test && z_decal) + 1, cur_shader->use_fog);
+    update_tests(a_test, z_test + (z_test && z_decal) + 1);
 }
 
 static void gfx_ps2_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
@@ -985,7 +749,7 @@ static void gfx_ps2_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t b
     const size_t tri_stride = vtx_stride * 3;
 
     const bool zge = z_test && z_decal;
-    draw_update_env(a_test, z_test + zge + 1, cur_shader->use_fog);
+    update_tests(a_test, z_test + zge + 1);
 
     if (cur_shader->used_textures[0]) {
         draw_set_clamp(cur_tex[0]->clamp_s, cur_tex[0]->clamp_t);
@@ -997,11 +761,8 @@ static void gfx_ps2_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t b
         case DRAW_TEX0_COL0_COL1:  draw_triangles_tex_col_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride); break;
         case DRAW_TEX0_COL0_TEXA:  draw_triangles_tex_col_texalpha(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride); break;
         case DRAW_TEX0_COL0_DECAL: draw_triangles_tex_col_decal(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride); break;
-        case DRAW_TEX0_COL0_FOG:   draw_triangles_tex_col_fog(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride); break;
         case DRAW_TEX0_COL0:       draw_triangles_tex_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride); break;
-        case DRAW_TEX0_FOG:        draw_triangles_tex_fog(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride); break;
         case DRAW_TEX0:            draw_triangles_tex(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride); break;
-        case DRAW_COL0_FOG:        draw_triangles_col_fog(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride, (cur_shader->num_inputs > 1)); break;
         default:                   draw_triangles_col(buf_vbo, buf_vbo_num_tris, vtx_stride, tri_stride, (cur_shader->num_inputs > 1)); break;
     }
 }
@@ -1069,7 +830,6 @@ struct GfxRenderingAPI gfx_ps2_rapi = {
     gfx_ps2_finish_render,
     gfx_ps2_upload_texture_ext,
     gfx_ps2_flush_textures,
-    gfx_ps2_set_fog_color,
 };
 
 
