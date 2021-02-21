@@ -23,8 +23,6 @@ TARGET_N64 ?= 0
 TARGET_WEB ?= 0
 # Build for PS2
 TARGET_PS2 ?= 1
-# Use the WIP GCC9+ toolchain
-USE_NEW_PS2SDK ?= 0
 # Compiler to use (ido or gcc)
 COMPILER ?= ido
 
@@ -281,11 +279,8 @@ endif
 else
 ifeq ($(TARGET_WEB),1)
   OPT_FLAGS := -O2 -g4 --source-map-base http://localhost:8080/
-else ifeq ($(USE_NEW_PS2SDK),1)
-  OPT_FLAGS := -O3 -fno-tree-builtin-call-dce -fno-strict-aliasing
-
 else
-  OPT_FLAGS := -O3 -fno-rename-registers
+  OPT_FLAGS := -O2
 endif
 endif
 
@@ -455,17 +450,11 @@ ifeq ($(TARGET_PS2),1)
   ifeq ($(PS2SDK),)
     $(error PS2SDK is not defined)
   endif
-  ifeq ($(USE_NEW_PS2SDK),1)
-    EE_PREFIX ?= mips64r5900el-ps2-elf-
-    EE_AS_PREFIX ?= $(EE_PREFIX)
-  else
-    EE_PREFIX ?= ee-
-    EE_AS_PREFIX ?=
-  endif
+  EE_PREFIX ?= ee-
   CC = $(EE_PREFIX)gcc -std=gnu99
   CXX= $(EE_PREFIX)g++ -std=gnu99
   CPP= $(EE_PREFIX)cpp -P
-  AS = $(EE_AS_PREFIX)as
+  AS = as
   LD = $(EE_PREFIX)gcc
   AR = $(EE_PREFIX)ar
   OBJCOPY = $(EE_PREFIX)objcopy
@@ -514,9 +503,13 @@ ifeq ($(TARGET_PS2),1)
   O_FILES += $(AUDSRV_IRX).o $(FREESD_IRX).o $(BUILD_DIR)/ps2_icon.o
   PLATFORM_CFLAGS  := -DTARGET_PS2 -D_EE -G0 -I$(AUDSRV)/ee/rpc/audsrv/include -I$(PS2SDK)/ee/include -I$(PS2SDK)/common/include -I$(GSKIT)/include
   PLATFORM_LDFLAGS := -L$(GSKIT)/lib -lgskit -ldmakit $(AUDSRV_LIB) -L$(PS2SDK)/ee/lib -lpad -lmc -ldma -lcdvd -lpatches -lm -lc -lkernel
+<<<<<<< HEAD
   ifneq ($(USE_NEW_PS2SDK),1)
     PLATFORM_ASFLAGS := --32 -march=generic32
   endif
+=======
+  PLATFORM_ASFLAGS := --32 -march=generic32
+>>>>>>> parent of 5a8a34b (add support for newer toolchain)
 endif
 
 PLATFORM_CFLAGS += -DNO_SEGMENTED_MEMORY
