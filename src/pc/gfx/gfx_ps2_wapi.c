@@ -72,7 +72,7 @@ static int vsync_callback(void) {
 }
 
 static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
-    vid_mode = &vid_modes[0];
+    vid_mode = &vid_modes[4];
     use_hires = (vid_mode->mode == GS_MODE_DTV_720P || vid_mode->mode == GS_MODE_DTV_1080I);
 
     if (use_hires)
@@ -95,6 +95,7 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
 
     gs_global->ZBuffering = GS_SETTING_ON;
     gs_global->DoubleBuffering = GS_SETTING_ON;
+    gs_global->Dithering = GS_SETTING_ON;
     gs_global->PrimAAEnable = GS_SETTING_OFF;
     gs_global->PSM = GS_PSM_CT16; // RGB565 color buffer
     gs_global->PSMZ = GS_PSMZ_16; // 16-bit unsigned zbuffer

@@ -388,7 +388,7 @@ static inline void import_texture_rgba16_swap(const uint32_t width, const uint32
         rgba16_buf[i] = (a << 15)  | (b << 10)  | (g << 5) | (r);
     }
 
-    gfx_rapi->upload_texture_ext(rgba16_buf, width, height, G_IM_FMT_RGBA, G_IM_SIZ_16b, NULL);
+    gfx_rapi->upload_texture_ext((void*)rgba16_buf, width, height, G_IM_FMT_RGBA, G_IM_SIZ_16b, NULL);
 }
 
 static void import_texture_rgba16(int tile) {

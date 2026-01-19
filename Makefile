@@ -911,7 +911,7 @@ endif
 
 
 
-.PHONY: all clean distclean default diff test load libultra
+.PHONY: all clean distclean default diff test load libultra iso
 # with no prerequisites, .SECONDARY causes no intermediate target to be removed
 .SECONDARY:
 
@@ -921,3 +921,10 @@ MAKEFLAGS += --no-builtin-rules
 -include $(DEP_FILES)
 
 print-% : ; $(info $* is a $(flavor $*) variable set to [$($*)]) @true
+
+PS2_GAME_CODE := SLUS_064.64
+iso: $(ELF)
+	@echo Creating iso from $(ELF)
+	@cp -r ps2/ntsc $(BUILD_DIR)/iso
+	@cp $< $(BUILD_DIR)/iso/$(PS2_GAME_CODE)
+	@mkisofs -o $(BUILD_DIR)/sm64.iso $(BUILD_DIR)/iso/

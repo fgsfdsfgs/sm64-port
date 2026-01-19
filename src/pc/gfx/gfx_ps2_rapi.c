@@ -142,7 +142,7 @@ static float z_offset = 0.f;
 static bool a_test = false;
 static bool do_blend = false;
 
-volatile bool render_finished;
+// volatile bool render_finished;
 
 static const uint64_t c_white = GS_SETREG_RGBAQ(0x80, 0x80, 0x80, 0x80, 0x00);
 
@@ -647,7 +647,6 @@ static void draw_clear(const u64 color) {
 
     u32 pos = 0;
 
-    strips++;
     while (strips--) {
         gsKit_prim_sprite(gs_global, pos, 0, pos + 64, gs_global->Height, 0, color);
         pos += 64;
