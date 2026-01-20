@@ -244,13 +244,17 @@ static uint32_t gfx_ps2_new_texture(void) {
 
 static void gfx_ps2_select_texture(int tile, uint32_t texture_id) {
     cur_tex[tile] = last_tex = tex_pool + texture_id;
+    // Ensure this texture will be visible
+    if (last_tex->tex.Vram) {
+        gsKit_TexManager_invalidate(gs_global, &last_tex->tex);
+        gsKit_TexManager_bind(gs_global, &last_tex->tex);
+    }
 }
 
 static void gfx_ps2_upload_texture_ext(const uint8_t *buf, int width, int height, int fmt, int bpp, const uint8_t *pal) {
     last_tex->tex.Width = width;
     last_tex->tex.Height = height;
     last_tex->tex.Filter = GS_FILTER_NEAREST;
-
     if (fmt == G_IM_FMT_RGBA && bpp == G_IM_SIZ_16b)
         last_tex->tex.PSM = GS_PSM_CT16; // RGBA5551
     else if (fmt == G_IM_FMT_RGBA && bpp == G_IM_SIZ_32b)

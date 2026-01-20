@@ -74,6 +74,7 @@ static int vsync_callback(void) {
 static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
     vid_mode = &vid_modes[4];
     use_hires = (vid_mode->mode == GS_MODE_DTV_720P || vid_mode->mode == GS_MODE_DTV_1080I);
+    // use_hires = false;
 
     if (use_hires)
         gs_global = gsKit_hires_init_global();
@@ -94,11 +95,13 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
     gs_global->Height = vid_mode->height;
 
     gs_global->ZBuffering = GS_SETTING_ON;
-    gs_global->DoubleBuffering = GS_SETTING_ON;
-    gs_global->Dithering = GS_SETTING_ON;
+    gs_global->DoubleBuffering = GS_SETTING_OFF;
     gs_global->PrimAAEnable = GS_SETTING_OFF;
     gs_global->PSM = GS_PSM_CT16; // RGB565 color buffer
-    gs_global->PSMZ = GS_PSMZ_16; // 16-bit unsigned zbuffer
+    gs_global->PSMZ = GS_PSMZ_16;
+    // gs_global->ZBuffer = gsKit_vram_alloc(gs_global, 16*16*2, GSKIT_ALLOC_SYSBUFFER);
+    // gs_global->PSMZ = GS_PSMZ_16;
+    // GS_SETREG_ZBUF_1(gs_global->ZBuffer / 8192, GS_PSMZ_16, 1);
 
     window_width = gs_global->Width;
     window_height = gs_global->Height;
@@ -156,11 +159,24 @@ static void gfx_ps2_get_dimensions(uint32_t *width, uint32_t *height) {
 static void gfx_ps2_handle_events(void) {
 }
 
+static inline void gfx_ps2_clear_buffers(void)
+{
+    //Clear color buffer (white or black)
+    // gsKit_clear(gs_global, GS_SETREG_RGBAQ(255, 255, 255, 255, 0));
+
+    // // Clear Z buffer
+    // if (gs_global->ZBuffering == GS_SETTING_ON) {
+    //     gsKit_clear_zbuffer(gs_global);
+    // }
+    // gsKit_clear_zbuffer(gs_global);
+}
+
 static bool gfx_ps2_start_frame(void) {
     if (use_hires) {
         if (do_render) {
             gsKit_hires_sync(gs_global);
             gsKit_hires_flip(gs_global);
+            gfx_ps2_clear_buffers();
         }
         return do_render;
     }
