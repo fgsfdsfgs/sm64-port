@@ -244,11 +244,6 @@ static uint32_t gfx_ps2_new_texture(void) {
 
 static void gfx_ps2_select_texture(int tile, uint32_t texture_id) {
     cur_tex[tile] = last_tex = tex_pool + texture_id;
-    // Ensure this texture will be visible
-    if (last_tex->tex.Vram) {
-        gsKit_TexManager_invalidate(gs_global, &last_tex->tex);
-        gsKit_TexManager_bind(gs_global, &last_tex->tex);
-    }
 }
 
 static void gfx_ps2_upload_texture_ext(const uint8_t *buf, int width, int height, int fmt, int bpp, const uint8_t *pal) {
@@ -330,6 +325,11 @@ static void gfx_ps2_set_viewport(int x, int y, int width, int height) {
 }
 
 static inline void draw_set_scissor(const int x0, const int y0, const int x1, const int y1) {
+    // TODO: scissor doesn't work with hires
+    if (gs_global->Mode == GS_MODE_DTV_720P || gs_global->Mode == GS_MODE_DTV_1080I) {
+        return;
+    }
+
     u64 *p_data = gsKit_heap_alloc(gs_global, 1, 16, GIF_AD);
 
     *p_data++ = GIF_TAG_AD(1);
