@@ -15,9 +15,6 @@
 #include "gfx_screen_config.h"
 #include "gfx_ps2.h"
 
-#define FRAMERATE_SHIFT 1
-#define FRAMESKIP 10
-
 struct VidMode {
     const char *name;
     s16 mode;
