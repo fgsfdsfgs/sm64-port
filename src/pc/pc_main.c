@@ -38,7 +38,6 @@
 #ifdef TARGET_PS2
 # include <tamtypes.h>
 # include <kernel.h>
-# include <iopheap.h>
 # include <iopcontrol.h>
 # include <sifrpc.h>
 # include <loadfile.h>
@@ -157,14 +156,14 @@ static void prepare_IOP() {
 }
 
 static void init_drivers() {
-	init_only_boot_ps2_filesystem_driver();
+    init_only_boot_ps2_filesystem_driver();
     init_memcard_driver(TRUE);
     ps2_memcard_init();
 }
 
 static void deinit_drivers() {
     deinit_memcard_driver(TRUE);
-	deinit_only_boot_ps2_filesystem_driver();
+    deinit_only_boot_ps2_filesystem_driver();
 }
 #endif
 
