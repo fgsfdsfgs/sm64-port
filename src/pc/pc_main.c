@@ -156,13 +156,16 @@ static void prepare_IOP() {
 }
 
 static void init_drivers() {
+    // This will try to load only the drivers from the unit where the game is running
     init_only_boot_ps2_filesystem_driver();
-    init_memcard_driver(TRUE);
+    // But also require to load manually the memcard driver, as maybe the game is running on a different unit
+    // and we're using the memory card to save/load game data
+    init_memcard_driver(true);
     ps2_memcard_init();
 }
 
 static void deinit_drivers() {
-    deinit_memcard_driver(TRUE);
+    deinit_memcard_driver(true);
     deinit_only_boot_ps2_filesystem_driver();
 }
 #endif
