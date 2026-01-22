@@ -317,6 +317,10 @@ static void gfx_ps2_set_viewport(int x, int y, int width, int height) {
     r_view.x = x;
     r_view.y = y;
     r_view.w = width;
+    // 1080i requires the view point is half height
+    if (gs_global->Mode == GS_MODE_DTV_1080I) {
+        height /= 2;
+    }
     r_view.h = height;
     r_view.hw = r_view.w * 0.5f;
     r_view.hh = r_view.h * 0.5f;
@@ -325,7 +329,7 @@ static void gfx_ps2_set_viewport(int x, int y, int width, int height) {
 }
 
 static inline void draw_set_scissor(const int x0, const int y0, const int x1, const int y1) {
-    // TODO: scissor doesn't work with hires
+    // scissor doesn't work with gskit hires
     if (gs_global->Mode == GS_MODE_DTV_720P || gs_global->Mode == GS_MODE_DTV_1080I) {
         return;
     }

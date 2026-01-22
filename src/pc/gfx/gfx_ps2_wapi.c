@@ -72,7 +72,7 @@ static int vsync_callback(void) {
 }
 
 static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
-    vid_mode = &vid_modes[4];
+    vid_mode = &vid_modes[5];
     use_hires = (vid_mode->mode == GS_MODE_DTV_720P || vid_mode->mode == GS_MODE_DTV_1080I);
 
     if (use_hires)
@@ -94,17 +94,26 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
     gs_global->Height = vid_mode->height;
 
     gs_global->ZBuffering = GS_SETTING_ON;
+    // this could be enabled, but I don't like it
+    gs_global->Dithering = GS_SETTING_OFF;
     gs_global->PrimAAEnable = GS_SETTING_OFF;
+    gs_global->PrimAlphaEnable = GS_SETTING_OFF;
     gs_global->PSM = use_hires ? GS_PSM_CT16 : GS_PSM_CT32; // RGB565 color buffer
     gs_global->PSMZ = GS_PSMZ_16;
+
+    // taken from OPL: https://github.com/ps2homebrew/Open-PS2-Loader/blob/45875da788b82002625137cfadbd0d398b674667/src/renderman.c#L219
+    // Coordinate space ranges from 0 to 4096 pixels
+    // Center the buffer in the coordinate space
+    gs_global->OffsetX = ((4096 - gs_global->Width) / 2) * 16;
+    gs_global->OffsetY = ((4096 - gs_global->Height) / 2) * 16;
 
     window_width = gs_global->Width;
     window_height = gs_global->Height;
 
-    // 1080i requires special handling
-    // if ((gs_global->Interlace == GS_INTERLACED) && (gs_global->Field == GS_FRAME))
-    if (gs_global->Mode == GS_MODE_DTV_1080I)
+    // 1080i renders at half height
+    if (gs_global->Mode == GS_MODE_DTV_1080I) {
         gs_global->Height /= 2;
+    }
 
     if (use_hires)
         gsKit_hires_init_screen(gs_global, vid_mode->iPassCount);
