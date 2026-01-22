@@ -150,7 +150,6 @@ void reset_IOP() {
 static void prepare_IOP() {
     reset_IOP();
     SifInitRpc(0);
-
     sbv_patch_enable_lmb();
     sbv_patch_disable_prefix_check();
 }
