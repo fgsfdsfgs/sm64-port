@@ -39,7 +39,7 @@ static const struct VidMode vid_modes[] = {
     { "576p", GS_MODE_DTV_576P,  GS_NONINTERLACED, GS_FRAME,  704,  576,  704,  536, 2, 1, 0, 0 },
     // HDTV
     { "720p", GS_MODE_DTV_720P,  GS_NONINTERLACED, GS_FRAME, 1280,  720, 1280,  720, 1, 2, 0, 0 },
-    {"1080i", GS_MODE_DTV_1080I, GS_INTERLACED,    GS_FIELD, 1920, 1080, 1920, 1080, 1, 2, 0, 0 },
+    {"1080i", GS_MODE_DTV_1080I, GS_INTERLACED,    GS_FIELD, 1920, 1080, 1920, 1080, 1, 3, 0, 0 },
 };
 
 GSGLOBAL *gs_global;
@@ -105,7 +105,7 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
 #if defined(VERSION_EU)
     vid_mode = &vid_modes[2]; // PAL
 #else
-    vid_mode = &vid_modes[5]; // NTCS
+    vid_mode = &vid_modes[0]; // NTCS
     // change to 5 for 1080i
     // vid_mode = &vid_modes[5];
 #endif
