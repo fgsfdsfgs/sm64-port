@@ -72,3 +72,7 @@ sm64config.txt
 !/sound/**/*custom*/**/*.aiff
 !/assets/**/*custom*.bin
 !/assets/**/*custom*/**/*.bin
+
+# PS2dev files
+ps2dev*.tar.gz
+ps2dev

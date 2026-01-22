@@ -316,6 +316,10 @@ static void gfx_ps2_set_viewport(int x, int y, int width, int height) {
     r_view.x = x;
     r_view.y = y;
     r_view.w = width;
+    // 1080i requires the view point is half height
+    if (gs_global->Mode == GS_MODE_DTV_1080I) {
+        height /= 2;
+    }
     r_view.h = height;
     r_view.hw = r_view.w * 0.5f;
     r_view.hh = r_view.h * 0.5f;
@@ -324,6 +328,11 @@ static void gfx_ps2_set_viewport(int x, int y, int width, int height) {
 }
 
 static inline void draw_set_scissor(const int x0, const int y0, const int x1, const int y1) {
+    // scissor doesn't work with gskit hires
+    if (gs_global->Mode == GS_MODE_DTV_720P || gs_global->Mode == GS_MODE_DTV_1080I) {
+        return;
+    }
+
     u64 *p_data = gsKit_heap_alloc(gs_global, 1, 16, GIF_AD);
 
     *p_data++ = GIF_TAG_AD(1);
@@ -645,7 +654,6 @@ static void draw_clear(const u64 color) {
 
     u32 pos = 0;
 
-    strips++;
     while (strips--) {
         gsKit_prim_sprite(gs_global, pos, 0, pos + 64, gs_global->Height, 0, color);
         pos += 64;
