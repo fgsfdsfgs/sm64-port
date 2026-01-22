@@ -105,7 +105,7 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
 #if defined(VERSION_EU)
     vid_mode = &vid_modes[2]; // PAL
 #else
-    vid_mode = &vid_modes[0]; // NTCS
+    vid_mode = &vid_modes[5]; // NTCS
     // change to 5 for 1080i
     // vid_mode = &vid_modes[5];
 #endif
@@ -196,6 +196,7 @@ static void gfx_ps2_swap_buffers_end(void) {
     /* How SM64 expect to run at 30 PFS we need to wait for 2 vsync */
     gsKit_sync(gs_global);
     if (use_hires) {
+        gsKit_hires_sync(gs_global);
         gsKit_hires_flip(gs_global);
     } else {
         gsKit_flip(gs_global);
