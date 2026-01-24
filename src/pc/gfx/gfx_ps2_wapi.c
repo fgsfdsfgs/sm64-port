@@ -202,9 +202,8 @@ static void gfx_ps2_swap_buffers_end(void) {
     } else {
         gsKit_sync(gs_global);
         gsKit_flip(gs_global);
+        gsKit_queue_exec(gs_global);
     }
-
-    gsKit_queue_exec(gs_global);
     gsKit_TexManager_nextFrame(gs_global);
 }
 
