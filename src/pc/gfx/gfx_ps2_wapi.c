@@ -39,7 +39,7 @@ static const struct VidMode vid_modes[] = {
     { "576p", GS_MODE_DTV_576P,  GS_NONINTERLACED, GS_FRAME,  704,  576,  704,  536, 2, 1, 0, 0 },
     // HDTV
     { "720p", GS_MODE_DTV_720P,  GS_NONINTERLACED, GS_FRAME, 1280,  720, 1280,  720, 1, 2, 0, 0 },
-    {"1080i", GS_MODE_DTV_1080I, GS_INTERLACED,    GS_FIELD, 1920, 1080, 1920, 1080, 1, 2, 0, 0 },
+    {"1080i", GS_MODE_DTV_1080I, GS_INTERLACED,    GS_FRAME, 1920, 1080, 1920, 1080, 1, 2, 0, 0 },
 };
 
 GSGLOBAL *gs_global;
@@ -105,7 +105,7 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
 #if defined(VERSION_EU)
     vid_mode = &vid_modes[2]; // PAL
 #else
-    vid_mode = &vid_modes[0]; // NTCS
+    vid_mode = &vid_modes[5]; // NTCS
     // change to 5 for 1080i
     // vid_mode = &vid_modes[5];
 #endif
@@ -135,7 +135,7 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
     gs_global->DoubleBuffering = GS_SETTING_ON;
     gs_global->PrimAAEnable = GS_SETTING_OFF;
     // this could be enabled for hires, but I don't like it
-    gs_global->Dithering = GS_SETTING_OFF;
+    gs_global->Dithering = GS_SETTING_ON;
     // hires runs out of VRAM if using more than 16bit color
     gs_global->PSM = use_hires ? GS_PSM_CT16 : GS_PSM_CT24;
     gs_global->PSMZ = GS_PSMZ_16; // 16-bit unsigned zbuffer
@@ -185,6 +185,9 @@ static bool gfx_ps2_start_frame(void) {
 }
 
 static void gfx_ps2_swap_buffers_begin(void) {
+    if (use_hires) {
+        return;
+    }
     if (vsync_sema_id != -1) return;
 
     prepare_sema();
@@ -194,11 +197,10 @@ static void gfx_ps2_swap_buffers_begin(void) {
 
 static void gfx_ps2_swap_buffers_end(void) {
     /* How SM64 expect to run at 30 PFS we need to wait for 2 vsync */
-    gsKit_sync(gs_global);
     if (use_hires) {
-        gsKit_hires_sync(gs_global);
-        gsKit_hires_flip(gs_global);
+        gsKit_hires_flip_ext(gs_global, GSFLIP_RATE_LIMIT_2);
     } else {
+        gsKit_sync(gs_global);
         gsKit_flip(gs_global);
     }
 
