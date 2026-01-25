@@ -11,6 +11,8 @@
 #include <gsHires.h>
 #include <dmaKit.h>
 
+#include "macros.h"
+
 #include "gfx_window_manager_api.h"
 #include "gfx_screen_config.h"
 #include "gfx_ps2.h"
@@ -31,12 +33,16 @@ struct VidMode {
 };
 
 static const struct VidMode vid_modes[] = {
+    { "240p", GS_MODE_NTSC,      GS_NONINTERLACED, GS_FRAME,  652,  224,  320,  224, 2, 1, 0, 0 },
+#if !defined(VERSION_EU)
     // NTSC
     { "480i", GS_MODE_NTSC,      GS_INTERLACED,    GS_FIELD,  704,  480,  704,  452, 4, 1, 0, 0 },
     { "480p", GS_MODE_DTV_480P,  GS_NONINTERLACED, GS_FRAME,  704,  480,  704,  452, 2, 1, 0, 0 },
+#else
     // PAL
     { "576i", GS_MODE_PAL,       GS_INTERLACED,    GS_FIELD,  704,  576,  704,  536, 4, 1, 0, 0 },
     { "576p", GS_MODE_DTV_576P,  GS_NONINTERLACED, GS_FRAME,  704,  576,  704,  536, 2, 1, 0, 0 },
+#endif
     // HDTV
     { "720p", GS_MODE_DTV_720P,  GS_NONINTERLACED, GS_FRAME, 1280,  720, 1280,  720, 1, 2, 0, 0 },
     {"1080i", GS_MODE_DTV_1080I, GS_INTERLACED,    GS_FRAME, 1920, 1080, 1920, 1080, 1, 2, 0, 0 },
@@ -47,6 +53,7 @@ GSGLOBAL *gs_global;
 static int vsync_sema_1st_id;
 static int vsync_sema_2nd_id;
 static int vsync_sema_id = -1;
+static int vsync_id = -1;
 
 static const struct VidMode *vid_mode;
 static bool use_hires = false;
@@ -102,13 +109,19 @@ static void prepare_sema() {
 }
 
 static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
-#if defined(VERSION_EU)
-    vid_mode = &vid_modes[2]; // PAL
-#else
-    vid_mode = &vid_modes[5]; // NTCS
-    // change to 5 for 1080i
-    // vid_mode = &vid_modes[5];
-#endif
+    if (vid_mode == NULL) {
+        vid_mode = &vid_modes[1]; // Standard Def
+    } else {
+        if (use_hires) {
+            gsKit_hires_deinit_global(gs_global);
+        } else {
+            gsKit_deinit_global(gs_global);
+            if (vsync_id != -1) {
+                gsKit_remove_vsync_handler(vsync_id);
+            }
+            vsync_sema_id = -1;
+        }
+    }
     use_hires = (vid_mode->mode == GS_MODE_DTV_720P || vid_mode->mode == GS_MODE_DTV_1080I);
 
     if (use_hires) {
@@ -135,7 +148,7 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
     gs_global->DoubleBuffering = GS_SETTING_ON;
     gs_global->PrimAAEnable = GS_SETTING_OFF;
     // this could be enabled for hires, but I don't like it
-    gs_global->Dithering = GS_SETTING_ON;
+    gs_global->Dithering = use_hires ? GS_SETTING_ON : GS_SETTING_OFF;
     // hires runs out of VRAM if using more than 16bit color
     gs_global->PSM = use_hires ? GS_PSM_CT16 : GS_PSM_CT24;
     gs_global->PSMZ = GS_PSMZ_16; // 16-bit unsigned zbuffer
@@ -148,6 +161,17 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
     // hires sets the texture pointer to the wrong location. Ensure it's correct.
     gs_global->TexturePointer = gs_global->CurrentPointer;
     gsKit_TexManager_init(gs_global);
+}
+
+static void gfx_ps2_set_vid_mode(uint8_t vid_mode_idx) {
+    if (vid_mode_idx >= ARRAY_COUNT(vid_modes)) {
+        return;
+    }
+
+    if (vid_mode != &vid_modes[vid_mode_idx]) {
+        vid_mode = &vid_modes[vid_mode_idx];
+        gfx_ps2_init(NULL, false);
+    }
 }
 
 static void gfx_ps2_set_fullscreen_changed_callback(void (*on_fullscreen_changed)(bool is_now_fullscreen)) {
@@ -192,7 +216,7 @@ static void gfx_ps2_swap_buffers_begin(void) {
 
     prepare_sema();
     vsync_sema_id = 0;
-    gsKit_add_vsync_handler(vsync_handler);
+    vsync_id = gsKit_add_vsync_handler(vsync_handler);
 }
 
 static void gfx_ps2_swap_buffers_end(void) {
@@ -222,7 +246,8 @@ struct GfxWindowManagerAPI gfx_ps2_wapi = {
     gfx_ps2_start_frame,
     gfx_ps2_swap_buffers_begin,
     gfx_ps2_swap_buffers_end,
-    gfx_ps2_get_time
+    gfx_ps2_get_time,
+    gfx_ps2_set_vid_mode,
 };
 
 #endif // TARGET_PS2

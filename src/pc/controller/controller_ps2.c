@@ -7,6 +7,7 @@
 #include <libpad.h>
 #include <libmtap.h>
 
+#include "controller_ps2.h"
 #include "controller_api.h"
 
 #define DEADZONE    24
@@ -38,6 +39,9 @@ static struct {
 };
 
 static int num_joy_binds = sizeof(joy_binds) / sizeof(joy_binds[0]);
+// Used for signalling a special n64 controller combination when
+// some buttons are held down for a number of frames
+static int special_input_hold_timer = 0;
 
 static inline int wait_pad(int tries) {
     int state = padGetState(joy_port, joy_slot);
@@ -142,7 +146,16 @@ static void controller_ps2_read(OSContPad *pad) {
     }
 }
 
+u32 controller_ps2_read_btns(void) {
+    if (joy_id > -1 && padRead(joy_port, joy_slot, &joy_buttons)) {
+        const u32 btns = 0xffff ^ joy_buttons.btns;
+        return btns;
+    }
+    return 0;
+}
+
 struct ControllerAPI controller_ps2 = {
     controller_ps2_init,
-    controller_ps2_read
+    controller_ps2_read,
+    controller_ps2_read_btns,
 };

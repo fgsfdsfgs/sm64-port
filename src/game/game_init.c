@@ -21,6 +21,11 @@
 #include "thread6.h"
 #include <prevent_bss_reordering.h>
 
+#ifdef TARGET_PS2
+#include "pc/ps2_vid_mode_select.h"
+#endif
+
+
 // FIXME: I'm not sure all of these variables belong in this file, but I don't
 // know of a good way to split them
 struct Controller gControllers[3];
@@ -480,7 +485,14 @@ void read_controller_inputs(void) {
 
     // if any controllers are plugged in, update the
     // controller information.
-    if (gControllerBits) {
+    
+    if (gControllerBits
+        #ifdef TARGET_PS2
+        // HACK: prevent the rest of the game from getting input
+        // when we are changing resolution
+        && !gShowVidModeSelect
+        #endif
+    ) {
         osRecvMesg(&gSIEventMesgQueue, &D_80339BEC, OS_MESG_BLOCK);
         osContGetReadData(&gControllerPads[0]);
 #ifdef VERSION_SH
