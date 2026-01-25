@@ -39,9 +39,6 @@ static struct {
 };
 
 static int num_joy_binds = sizeof(joy_binds) / sizeof(joy_binds[0]);
-// Used for signalling a special n64 controller combination when
-// some buttons are held down for a number of frames
-static int special_input_hold_timer = 0;
 
 static inline int wait_pad(int tries) {
     int state = padGetState(joy_port, joy_slot);

@@ -23,6 +23,11 @@ static s8 gDialogLineNum = 0;
 // Init in SD interlaced
 u8 gShowVidModeSelect = FALSE;
 
+// Used for signalling a special n64 controller combination when
+// some buttons are held down for a number of frames
+static int special_input_hold_timer = 0;
+
+
 extern void adjust_analog_stick(struct Controller *controller);
 
 static void shade_screen(void) {
