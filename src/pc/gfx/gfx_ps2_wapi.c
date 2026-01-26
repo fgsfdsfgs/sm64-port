@@ -110,7 +110,7 @@ static void prepare_sema() {
 
 static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
     if (vid_mode == NULL) {
-        vid_mode = &vid_modes[1]; // Standard Def
+        vid_mode = &vid_modes[1]; // Standard def 480i
     } else {
         if (use_hires) {
             gsKit_hires_deinit_global(gs_global);
@@ -163,15 +163,17 @@ static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
     gsKit_TexManager_init(gs_global);
 }
 
-static void gfx_ps2_set_vid_mode(uint8_t vid_mode_idx) {
+static bool gfx_ps2_set_vid_mode(uint8_t vid_mode_idx) {
     if (vid_mode_idx >= ARRAY_COUNT(vid_modes)) {
-        return;
+        return false;
     }
 
     if (vid_mode != &vid_modes[vid_mode_idx]) {
         vid_mode = &vid_modes[vid_mode_idx];
         gfx_ps2_init(NULL, false);
+        return true;
     }
+    return false;
 }
 
 static void gfx_ps2_set_fullscreen_changed_callback(void (*on_fullscreen_changed)(bool is_now_fullscreen)) {

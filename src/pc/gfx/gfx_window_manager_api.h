@@ -16,7 +16,7 @@ struct GfxWindowManagerAPI {
     void (*swap_buffers_begin)(void);
     void (*swap_buffers_end)(void);
     double (*get_time)(void); // For debug
-    void (*set_vid_mode)(uint8_t vid_mode_idx); // only used for window managers which require it
+    bool (*set_vid_mode)(uint8_t vid_mode_idx); // only used for window managers which require it
 };
 
 #endif

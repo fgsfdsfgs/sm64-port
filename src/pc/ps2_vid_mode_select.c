@@ -7,26 +7,42 @@
 #include "game/game_init.h"
 #include "game/ingame_menu.h"
 #include "game/segment2.h"
+#include "game/save_file.h"
 
 #include "audio/external.h"
 
-#include "pc/ps2_vid_mode_select.h"
-#include "pc/gfx/gfx_ps2.h"
 #include "pc/controller/controller_ps2.h"
+#include "pc/gfx/gfx_ps2.h"
+#include "pc/gfx/gfx_pc.h"
+#include "pc/ps2_vid_mode_select.h"
 
-#include "stdio.h"
 
+// stolen from `ingame_menu.c`
 static u8 gMenuHoldKeyIndex = 0;
 static u8 gMenuHoldKeyTimer = 0;
 static s8 gDialogLineNum = 0;
 
-// Init in SD interlaced
 u8 gShowVidModeSelect = FALSE;
 
 // Used for signalling a special n64 controller combination when
 // some buttons are held down for a number of frames
-static int special_input_hold_timer = 0;
+static int specialInputHoldTimer = 0;
+static u32 coolOffTimer = FALSE;
 
+// NTSC (480i) or PAL (576i)
+#define DEFAULT_VID_MODE 1
+
+#define TEXT_SELECT_VIDEO_MODE \
+    0x1C,0x28,0x2F,0x28,0x26,0x37, DIALOG_CHAR_SPACE, \
+    0x39,0x2C,0x27,0x28,0x32, DIALOG_CHAR_SPACE, \
+    0x30,0x32,0x27,0x28, DIALOG_CHAR_SPACE, \
+    0x37,0x32, DIALOG_CHAR_TERMINATOR
+
+#define TEXT_TO_SAVE_YOUR_PREFERENCE \
+    0x36,0x24,0x39,0x28, DIALOG_CHAR_SPACE, \
+    0x3C,0x32,0x38,0x35, DIALOG_CHAR_SPACE, \
+    0x33,0x35,0x28,0x29,0x28,0x35,0x28,0x31,0x26,0x28, DIALOG_CHAR_SPACE, \
+    DIALOG_CHAR_TERMINATOR
 
 extern void adjust_analog_stick(struct Controller *controller);
 
@@ -102,11 +118,16 @@ void render_ps2_vid_mode_options(s16 x, s16 y, s8 *index, s16 yIndex) {
     u8 text720p[] = { 0x07,0x02,0x00,0x33,0xFF };
     u8 text1080i[] = { 0x01,0x00,0x08,0x00,0x2C,0xFF };
     u8* options[] = { text240p, text480i, text480p, text720p, text1080i };
+    u8 infoText1[] = { TEXT_SELECT_VIDEO_MODE };
+    u8 infoText2[] = { TEXT_TO_SAVE_YOUR_PREFERENCE };
 
     handle_vertical_menu_scrolling(MENU_SCROLL_VERTICAL, index, 1, 5);
 
     gSPDisplayList(gDisplayListHead++, dl_ia_text_begin);
     gDPSetEnvColor(gDisplayListHead++, 255, 255, 255, gDialogTextAlpha);
+
+    print_generic_string(x, y + 30, infoText1);
+    print_generic_string(x, y + 15, infoText2);
 
     u8 i;
     for (i = 0; i < ARRAY_COUNT(options); i++) {
@@ -122,36 +143,80 @@ void render_ps2_vid_mode_options(s16 x, s16 y, s8 *index, s16 yIndex) {
     gSPPopMatrix(gDisplayListHead++, G_MTX_MODELVIEW);
 }
 
-void handle_ps2_vid_mode_select(void) {
-    // Special (impossible) button combo
-    u32 btns = controller_ps2.read_btns();
-    if (btns & (PAD_CROSS | PAD_TRIANGLE) && !gShowVidModeSelect) {
-        special_input_hold_timer++;
-    } else {
-        special_input_hold_timer = 0;
+static void ps2_vid_mode_select_open(void) {
+    gShowVidModeSelect = TRUE;    
+    
+    // reset vid mode
+    u8 vidMode = DEFAULT_VID_MODE;
+    if (gfx_ps2_wapi.set_vid_mode(vidMode)) {
+        save_file_set_ps2_vid_mode(vidMode);
     }
 
-    if (special_input_hold_timer > 15) {
-        gShowVidModeSelect = TRUE;
-        gDialogTextAlpha = 0;
-        gDialogLineNum = 3;
-        special_input_hold_timer = 0;
+    gDialogTextAlpha = 0;
+    gDialogLineNum = vidMode + 1;
+
+    // prevent a mode being selected by the X
+    // button after the menu opens
+    coolOffTimer = 60;
+}
+
+static void ps2_vid_mode_select_detect_open(u32 btns) {
+    if ((btns & (PAD_CROSS | PAD_TRIANGLE)) == (PAD_CROSS | PAD_TRIANGLE) && !gShowVidModeSelect) {
+        specialInputHoldTimer++;
+    } else {
+        specialInputHoldTimer = 0;
     }
+
+    if (specialInputHoldTimer > 15) {
+        ps2_vid_mode_select_open();
+        specialInputHoldTimer = 0;
+    }
+
+    if (coolOffTimer > 0) {
+        coolOffTimer--;
+    }
+}
+
+void ps2_vid_mode_select_init(void) {
+    u8 vidMode = DEFAULT_VID_MODE; // 480i;
+    u16 savedVidMode = save_file_get_ps2_vid_mode();
+
+    // Vid mode has never been saved
+    if (savedVidMode != (u16)-1) {
+        vidMode = savedVidMode;
+    }
+    gfx_ps2_wapi.set_vid_mode(vidMode);
+}
+
+
+void handle_ps2_vid_mode_select(void) {
+    // Read raw PS2 controls so that we can read triangle
+    u32 btns = controller_ps2.read_btns();
+    // Look forthe special button combo
+    ps2_vid_mode_select_detect_open(btns);
 
     if (gShowVidModeSelect) {
-        
         shade_screen();
         render_ps2_vid_mode_options(99, 93, &gDialogLineNum, 15);
+        // Preview the vid mode
+        u8 vidMode = gDialogLineNum - 1;
         // This will do nothing unless the vid mode has changed
         // so it's safe to call every frame
-        gfx_ps2_wapi.set_vid_mode(gDialogLineNum - 1);
+        if (gfx_ps2_wapi.set_vid_mode(vidMode)) {
+            // Reset the texture cache since we've changed 
+            // video mode so VRAM might get a little weird
+            // This atm does not work (causes more VRAM issues)
+            // gfx_clear_texture_cache();
+        };
 
-        if ((btns & PAD_CROSS) && !(btns & PAD_TRIANGLE))
+
+        if ((btns & PAD_CROSS) && coolOffTimer == 0)
         {
+            save_file_set_ps2_vid_mode(vidMode);
             play_sound(SOUND_MENU_PAUSE_2, gDefaultSoundArgs);
-            // TODO: save vid mode
             gShowVidModeSelect = FALSE;
         }
+        
 
         if (gDialogTextAlpha < 250) {
             gDialogTextAlpha += 25;
@@ -159,3 +224,4 @@ void handle_ps2_vid_mode_select(void) {
         gDialogColorFadeTimer = (s16) gDialogColorFadeTimer + 0x1000;
     }
 }
+

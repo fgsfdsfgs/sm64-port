@@ -571,6 +571,23 @@ u16 save_file_get_sound_mode(void) {
     return gSaveBuffer.menuData[0].soundMode;
 }
 
+#ifdef TARGET_PS2
+void save_file_set_ps2_vid_mode(u16 mode) {
+    gSaveBuffer.menuData[0].ps2VidMode = mode;
+    gSaveBuffer.menuData[0].ps2VidModeSet = 1;
+
+    gMainMenuDataModified = TRUE;
+    save_main_menu_data();
+}
+
+u16 save_file_get_ps2_vid_mode(void) {
+    if (gSaveBuffer.menuData[0].ps2VidModeSet == 1) {
+        return gSaveBuffer.menuData[0].ps2VidMode;
+    }
+    return (u16)-1;
+}
+#endif
+
 void save_file_move_cap_to_default_location(void) {
     if (save_file_get_flags() & SAVE_FLAG_CAP_ON_GROUND) {
         switch (gSaveBuffer.files[gCurrSaveFileNum - 1][0].capLevel) {

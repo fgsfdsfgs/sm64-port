@@ -4,6 +4,7 @@
 #include "sm64.h"
 
 void handle_ps2_vid_mode_select(void);
+void ps2_vid_mode_select_init(void);
 
 extern u8 gShowVidModeSelect;
 

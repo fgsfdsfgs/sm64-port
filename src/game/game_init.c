@@ -487,11 +487,11 @@ void read_controller_inputs(void) {
     // controller information.
     
     if (gControllerBits
-        #ifdef TARGET_PS2
+#ifdef TARGET_PS2
         // HACK: prevent the rest of the game from getting input
         // when we are changing resolution
         && !gShowVidModeSelect
-        #endif
+#endif
     ) {
         osRecvMesg(&gSIEventMesgQueue, &D_80339BEC, OS_MESG_BLOCK);
         osContGetReadData(&gControllerPads[0]);
@@ -613,6 +613,12 @@ void thread5_game_loop(UNUSED void *arg) {
     create_thread_6();
 #endif
     save_file_load_all();
+
+#ifdef TARGET_PS2
+    // Must be called after save file loaded to 
+    // configure preferred video mode
+    ps2_vid_mode_select_init();
+#endif
 
     set_vblank_handler(2, &gGameVblankHandler, &gGameVblankQueue, (OSMesg) 1);
 
