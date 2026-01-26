@@ -22,6 +22,10 @@
 #include "save_file.h"
 #include "level_table.h"
 
+#ifdef TARGET_PS2
+#include "pc/ps2_vid_mode_select.h"
+#endif
+
 struct SpawnInfo gPlayerSpawnInfos[1];
 struct GraphNode *D_8033A160[0x100];
 struct Area gAreaData[8];
@@ -382,6 +386,10 @@ void render_game(void) {
         if (gPauseScreenMode != 0) {
             gSaveOptSelectIndex = gPauseScreenMode;
         }
+
+#ifdef TARGET_PS2
+        handle_ps2_vid_mode_select();
+#endif
 
         if (D_8032CE78 != NULL) {
             make_viewport_clip_rect(D_8032CE78);

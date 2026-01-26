@@ -54,6 +54,7 @@ s8 D_8032C648;
 s8 gDebugLevelSelect;
 s8 gShowProfiler;
 s8 gShowDebugText;
+s8 gDisableInput = FALSE;
 
 static struct AudioAPI *audio_api;
 static struct GfxWindowManagerAPI *wm_api;

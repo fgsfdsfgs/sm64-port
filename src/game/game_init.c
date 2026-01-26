@@ -21,6 +21,11 @@
 #include "thread6.h"
 #include <prevent_bss_reordering.h>
 
+#ifdef TARGET_PS2
+#include "pc/ps2_vid_mode_select.h"
+#endif
+
+
 // FIXME: I'm not sure all of these variables belong in this file, but I don't
 // know of a good way to split them
 struct Controller gControllers[3];
@@ -480,7 +485,11 @@ void read_controller_inputs(void) {
 
     // if any controllers are plugged in, update the
     // controller information.
-    if (gControllerBits) {
+    if (gControllerBits
+#ifndef TARGET_N64
+        && !gDisableInput
+#endif
+    ) {
         osRecvMesg(&gSIEventMesgQueue, &D_80339BEC, OS_MESG_BLOCK);
         osContGetReadData(&gControllerPads[0]);
 #ifdef VERSION_SH
@@ -601,6 +610,12 @@ void thread5_game_loop(UNUSED void *arg) {
     create_thread_6();
 #endif
     save_file_load_all();
+
+#ifdef TARGET_PS2
+    // Must be called after save file loaded to 
+    // configure preferred video mode
+    ps2_vid_mode_select_init();
+#endif
 
     set_vblank_handler(2, &gGameVblankHandler, &gGameVblankQueue, (OSMesg) 1);
 

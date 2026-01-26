@@ -71,6 +71,10 @@ s8 D_8032C650 = 0;
 s8 gShowProfiler = FALSE;
 s8 gShowDebugText = FALSE;
 
+#ifndef TARGET_N64
+s8 gDisableInput = FALSE;
+#endif
+
 // unused
 void handle_debug_key_sequences(void) {
     static u16 sProfilerKeySequence[] = {

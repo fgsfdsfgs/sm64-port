@@ -322,6 +322,11 @@ static struct ColorCombiner *gfx_lookup_or_create_color_combiner(uint32_t cc_id)
     return prev_combiner = comb;
 }
 
+void gfx_clear_texture_cache(void) {
+    if (gfx_rapi->flush_textures) gfx_rapi->flush_textures();
+    gfx_texture_cache.pool_pos = 0;
+}
+
 static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, const uint8_t *orig_addr, uint32_t fmt, uint32_t siz) {
     size_t hash = (uintptr_t)orig_addr;
     hash = (hash >> 5) & 0x3ff;
@@ -336,8 +341,7 @@ static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, co
     }
     if (gfx_texture_cache.pool_pos == sizeof(gfx_texture_cache.pool) / sizeof(struct TextureHashmapNode)) {
         // Pool is full. We just invalidate everything and start over.
-        if (gfx_rapi->flush_textures) gfx_rapi->flush_textures();
-        gfx_texture_cache.pool_pos = 0;
+        gfx_clear_texture_cache();
         node = &gfx_texture_cache.hashmap[hash];
         //puts("Clearing texture cache");
     }
@@ -2025,3 +2029,4 @@ void gfx_end_frame(void) {
         gfx_wapi->swap_buffers_end();
     }
 }
+

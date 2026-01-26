@@ -55,9 +55,23 @@ struct MainMenuSaveData
 
 #ifdef VERSION_EU
     u16 language;
+#endif
+
+#ifdef TARGET_PS2
+    // u16 for consistency, like why is language u16?
+    u16 ps2VidMode; 
+    u16 ps2VidModeSet; 
+#ifdef VERSION_EU
+#define SUBTRAHEND 12
+#else
+#define SUBTRAHEND 10
+#endif
+#else
+#ifdef VERSION_EU
 #define SUBTRAHEND 8
 #else
 #define SUBTRAHEND 6
+#endif
 #endif
 
     // Pad to match the EEPROM size of 0x200 (10 bytes on JP/US, 8 bytes on EU)
@@ -143,6 +157,10 @@ void save_file_set_cap_pos(s16 x, s16 y, s16 z);
 s32 save_file_get_cap_pos(Vec3s capPos);
 void save_file_set_sound_mode(u16 mode);
 u16 save_file_get_sound_mode(void);
+#ifdef TARGET_PS2
+void save_file_set_ps2_vid_mode(u16 mode);
+u16 save_file_get_ps2_vid_mode(void);
+#endif
 void save_file_move_cap_to_default_location(void);
 
 void disable_warp_checkpoint(void);

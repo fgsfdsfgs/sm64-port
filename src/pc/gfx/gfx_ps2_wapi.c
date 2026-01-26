@@ -8,7 +8,10 @@
 
 #include <kernel.h>
 #include <gsKit.h>
+#include <gsHires.h>
 #include <dmaKit.h>
+
+#include "macros.h"
 
 #include "gfx_window_manager_api.h"
 #include "gfx_screen_config.h"
@@ -24,20 +27,25 @@ struct VidMode {
     int width;
     int height;
     int vck;
+    int iPassCount;
     int x_off;
     int y_off;
 };
 
 static const struct VidMode vid_modes[] = {
+    { "240p", GS_MODE_NTSC,      GS_NONINTERLACED, GS_FRAME,  652,  224,  320,  224, 2, 1, 0, 0 },
+#if !defined(VERSION_EU)
     // NTSC
-    { "480i", GS_MODE_NTSC,      GS_INTERLACED,    GS_FIELD,  704,  480,  704,  452, 4, 0, 0 },
-    { "480p", GS_MODE_DTV_480P,  GS_NONINTERLACED, GS_FRAME,  704,  480,  704,  452, 2, 0, 0 },
+    { "480i", GS_MODE_NTSC,      GS_INTERLACED,    GS_FIELD,  704,  480,  704,  452, 4, 1, 0, 0 },
+    { "480p", GS_MODE_DTV_480P,  GS_NONINTERLACED, GS_FRAME,  704,  480,  704,  452, 2, 1, 0, 0 },
+#else
     // PAL
-    { "576i", GS_MODE_PAL,       GS_INTERLACED,    GS_FIELD,  704,  576,  704,  536, 4, 0, 0 },
-    { "576p", GS_MODE_DTV_576P,  GS_NONINTERLACED, GS_FRAME,  704,  576,  704,  536, 2, 0, 0 },
+    { "576i", GS_MODE_PAL,       GS_INTERLACED,    GS_FIELD,  704,  576,  704,  536, 4, 1, 0, 0 },
+    { "576p", GS_MODE_DTV_576P,  GS_NONINTERLACED, GS_FRAME,  704,  576,  704,  536, 2, 1, 0, 0 },
+#endif
     // HDTV
-    { "720p", GS_MODE_DTV_720P,  GS_NONINTERLACED, GS_FRAME, 1280,  720, 1280,  698, 1, 0, 0 },
-    {"1080i", GS_MODE_DTV_1080I, GS_INTERLACED,    GS_FIELD, 1920, 1080, 1920, 1080, 1, 0, 0 },
+    { "720p", GS_MODE_DTV_720P,  GS_NONINTERLACED, GS_FRAME, 1280,  720, 1280,  720, 1, 2, 0, 0 },
+    {"1080i", GS_MODE_DTV_1080I, GS_INTERLACED,    GS_FRAME, 1920, 1080, 1920, 1080, 1, 2, 0, 0 },
 };
 
 GSGLOBAL *gs_global;
@@ -45,8 +53,10 @@ GSGLOBAL *gs_global;
 static int vsync_sema_1st_id;
 static int vsync_sema_2nd_id;
 static int vsync_sema_id = -1;
+static int vsync_id = -1;
 
 static const struct VidMode *vid_mode;
+static bool use_hires = false;
 
 /* Copy of gsKit_sync_flip, but without the 'flip' */
 static void gsKit_sync(GSGLOBAL *gsGlobal)
@@ -99,32 +109,71 @@ static void prepare_sema() {
 }
 
 static void gfx_ps2_init(const char *game_name, bool start_in_fullscreen) {
-    gs_global = gsKit_init_global();
+    if (vid_mode == NULL) {
+        vid_mode = &vid_modes[1]; // Standard def 480i
+    } else {
+        if (use_hires) {
+            gsKit_hires_deinit_global(gs_global);
+        } else {
+            gsKit_deinit_global(gs_global);
+            if (vsync_id != -1) {
+                gsKit_remove_vsync_handler(vsync_id);
+            }
+            vsync_sema_id = -1;
+        }
+    }
+    use_hires = (vid_mode->mode == GS_MODE_DTV_720P || vid_mode->mode == GS_MODE_DTV_1080I);
+
+    if (use_hires) {
+        gs_global = gsKit_hires_init_global();
+    } else {
+        gs_global = gsKit_init_global();
+    }
 
     dmaKit_init(D_CTRL_RELE_OFF, D_CTRL_MFD_OFF, D_CTRL_STS_UNSPEC,
                 D_CTRL_STD_OFF, D_CTRL_RCYC_8, 1 << DMA_CHANNEL_GIF);
 
     dmaKit_chan_init(DMA_CHANNEL_GIF);
 
-#if defined(VERSION_EU)
-    vid_mode = &vid_modes[2]; // PAL
-#else
-    vid_mode = &vid_modes[0]; // NTCS
-#endif
-
     gs_global->Mode = vid_mode->mode;
     gs_global->Width = vid_mode->width;
     gs_global->Height = vid_mode->height;
+    if (gs_global->Mode == GS_MODE_DTV_1080I) {
+        gs_global->Height /= 2;
+    }
+
     gs_global->Interlace = vid_mode->interlace;
     gs_global->Field = vid_mode->field;
     gs_global->ZBuffering = GS_SETTING_ON;
     gs_global->DoubleBuffering = GS_SETTING_ON;
     gs_global->PrimAAEnable = GS_SETTING_OFF;
-    gs_global->PSM = GS_PSM_CT24;
+    // this could be enabled for hires, but I don't like it
+    gs_global->Dithering = use_hires ? GS_SETTING_ON : GS_SETTING_OFF;
+    // hires runs out of VRAM if using more than 16bit color
+    gs_global->PSM = use_hires ? GS_PSM_CT16 : GS_PSM_CT24;
     gs_global->PSMZ = GS_PSMZ_16; // 16-bit unsigned zbuffer
 
-    gsKit_init_screen(gs_global);
+    if (use_hires) {
+        gsKit_hires_init_screen(gs_global, vid_mode->iPassCount);
+    } else {
+        gsKit_init_screen(gs_global);
+    }
+    // hires sets the texture pointer to the wrong location. Ensure it's correct.
+    gs_global->TexturePointer = gs_global->CurrentPointer;
     gsKit_TexManager_init(gs_global);
+}
+
+static bool gfx_ps2_set_vid_mode(uint8_t vid_mode_idx) {
+    if (vid_mode_idx >= ARRAY_COUNT(vid_modes)) {
+        return false;
+    }
+
+    if (vid_mode != &vid_modes[vid_mode_idx]) {
+        vid_mode = &vid_modes[vid_mode_idx];
+        gfx_ps2_init(NULL, false);
+        return true;
+    }
+    return false;
 }
 
 static void gfx_ps2_set_fullscreen_changed_callback(void (*on_fullscreen_changed)(bool is_now_fullscreen)) {
@@ -146,6 +195,11 @@ static void gfx_ps2_main_loop(void (*run_one_game_iter)(void)) {
 static void gfx_ps2_get_dimensions(uint32_t *width, uint32_t *height) {
     *width = gs_global->Width;
     *height = gs_global->Height;
+    // the game doesn't need to know that we are 
+    // rendering at half height for 1080i
+    if (gs_global->Mode == GS_MODE_DTV_1080I) {
+        *height *= 2;
+    }
 }
 
 static void gfx_ps2_handle_events(void) {
@@ -157,19 +211,25 @@ static bool gfx_ps2_start_frame(void) {
 }
 
 static void gfx_ps2_swap_buffers_begin(void) {
+    if (use_hires) {
+        return;
+    }
     if (vsync_sema_id != -1) return;
 
     prepare_sema();
     vsync_sema_id = 0;
-    gsKit_add_vsync_handler(vsync_handler);
+    vsync_id = gsKit_add_vsync_handler(vsync_handler);
 }
 
 static void gfx_ps2_swap_buffers_end(void) {
     /* How SM64 expect to run at 30 PFS we need to wait for 2 vsync */
-    gsKit_sync(gs_global);
-
-    gsKit_flip(gs_global);
-    gsKit_queue_exec(gs_global);
+    if (use_hires) {
+        gsKit_hires_flip_ext(gs_global, GSFLIP_RATE_LIMIT_2);
+    } else {
+        gsKit_sync(gs_global);
+        gsKit_flip(gs_global);
+        gsKit_queue_exec(gs_global);
+    }
     gsKit_TexManager_nextFrame(gs_global);
 }
 
@@ -188,7 +248,8 @@ struct GfxWindowManagerAPI gfx_ps2_wapi = {
     gfx_ps2_start_frame,
     gfx_ps2_swap_buffers_begin,
     gfx_ps2_swap_buffers_end,
-    gfx_ps2_get_time
+    gfx_ps2_get_time,
+    gfx_ps2_set_vid_mode,
 };
 
 #endif // TARGET_PS2
