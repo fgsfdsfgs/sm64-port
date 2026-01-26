@@ -1,10 +1,10 @@
 #include <ultra64.h>
 
 #include "sm64.h"
-#include "main.h"
 
 #include "gfx_dimensions.h"
 
+#include "game/main.h"
 #include "game/game_init.h"
 #include "game/ingame_menu.h"
 #include "game/segment2.h"
@@ -162,7 +162,7 @@ static void ps2_vid_mode_select_open(void) {
     coolOffTimer = 60;
 }
 
-static ps2_vid_mode_select_close(void) {
+static void ps2_vid_mode_select_close(void) {
     gShowVidModeSelect = FALSE;
     gDisableInput = FALSE;
 }
@@ -215,7 +215,6 @@ void handle_ps2_vid_mode_select(void) {
             // This atm does not work (causes more VRAM issues)
             // gfx_clear_texture_cache();
         };
-
 
         if ((btns & PAD_CROSS) && coolOffTimer == 0)
         {
