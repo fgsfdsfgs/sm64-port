@@ -485,12 +485,9 @@ void read_controller_inputs(void) {
 
     // if any controllers are plugged in, update the
     // controller information.
-    
     if (gControllerBits
-#ifdef TARGET_PS2
-        // HACK: prevent the rest of the game from getting input
-        // when we are changing resolution
-        && !gShowVidModeSelect
+#ifndef TARGET_N64
+        && !gDisableInput
 #endif
     ) {
         osRecvMesg(&gSIEventMesgQueue, &D_80339BEC, OS_MESG_BLOCK);

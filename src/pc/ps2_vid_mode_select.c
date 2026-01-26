@@ -1,6 +1,7 @@
 #include <ultra64.h>
 
 #include "sm64.h"
+#include "main.h"
 
 #include "gfx_dimensions.h"
 
@@ -144,7 +145,8 @@ void render_ps2_vid_mode_options(s16 x, s16 y, s8 *index, s16 yIndex) {
 }
 
 static void ps2_vid_mode_select_open(void) {
-    gShowVidModeSelect = TRUE;    
+    gShowVidModeSelect = TRUE;
+    gDisableInput = TRUE;
     
     // reset vid mode
     u8 vidMode = DEFAULT_VID_MODE;
@@ -158,6 +160,11 @@ static void ps2_vid_mode_select_open(void) {
     // prevent a mode being selected by the X
     // button after the menu opens
     coolOffTimer = 60;
+}
+
+static ps2_vid_mode_select_close(void) {
+    gShowVidModeSelect = FALSE;
+    gDisableInput = FALSE;
 }
 
 static void ps2_vid_mode_select_detect_open(u32 btns) {
@@ -214,7 +221,7 @@ void handle_ps2_vid_mode_select(void) {
         {
             save_file_set_ps2_vid_mode(vidMode);
             play_sound(SOUND_MENU_PAUSE_2, gDefaultSoundArgs);
-            gShowVidModeSelect = FALSE;
+            ps2_vid_mode_select_close();
         }
         
 

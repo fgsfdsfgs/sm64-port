@@ -387,9 +387,9 @@ void render_game(void) {
             gSaveOptSelectIndex = gPauseScreenMode;
         }
 
-        #ifdef TARGET_PS2
+#ifdef TARGET_PS2
         handle_ps2_vid_mode_select();
-        #endif
+#endif
 
         if (D_8032CE78 != NULL) {
             make_viewport_clip_rect(D_8032CE78);

@@ -64,6 +64,9 @@ extern s8 gDebugLevelSelect;
 extern s8 D_8032C650;
 extern s8 gShowProfiler;
 extern s8 gShowDebugText;
+#ifndef TARGET_N64
+extern s8 gDisableInput;
+#endif
 
 void set_vblank_handler(s32 index, struct VblankHandler *handler, OSMesgQueue *queue, OSMesg *msg);
 void dispatch_audio_sptask(struct SPTask *spTask);
