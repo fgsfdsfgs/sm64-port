@@ -62,18 +62,31 @@ static inline bool create_save(void) {
 
     static const iconFVECTOR lightcol[] = {
         { 0.3, 0.3, 0.3, 0.00 },
-        { 0.4, 0.4, 0.4, 0.00 },
-        { 0.5, 0.5, 0.5, 0.00 },
+        { 0.3, 0.3, 0.3, 0.00 },
+        { 0.3, 0.3, 0.3, 0.00 },
     };
 
     static const iconFVECTOR ambient = { 0.50, 0.50, 0.50, 0.00 };
+
+    // PS2 icon.sys title must be manually encoded in SJIS.
+    // DO NOT replace with strcpy_sjis(): it causes incorrect spacing on real hardware.
+    //
+    // Format:
+    // - 0x0000 splits "Super" / "Mario 64" (used with nlOffset)
+    // - 0x8140 = full-width SJIS space (fixes spacing)
+    //
+    // Verified on hardware; see commit history for details.
+    static const uint16_t sjis_title[] = {
+        'S','u','p','e','r', 0x0000,
+        'M','a','r','i','o', 0x8140,'6','4', 0x0000
+    };
 
     mcIcon icon_sys;
 
     memset(&icon_sys, 0, sizeof(mcIcon));
     strcpy(icon_sys.head, "PS2D");
-    strcpy_sjis((short *)&icon_sys.title, "Super\nMario 64");
-    icon_sys.nlOffset = 16;
+    memcpy(&icon_sys.title, sjis_title, sizeof(sjis_title));
+    icon_sys.nlOffset = 5;
     icon_sys.trans = 0x60;
     memcpy(icon_sys.bgCol, bgcolor, sizeof(bgcolor));
     memcpy(icon_sys.lightDir, lightdir, sizeof(lightdir));
