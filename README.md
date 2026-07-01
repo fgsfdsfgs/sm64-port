@@ -1,95 +1,84 @@
-# Super Mario 64 Port
+# Super Mario 64 Port - PS3 Port
 
+- The PS3 port is still in development. Expect issues.
 - This repo contains a full decompilation of Super Mario 64 (J), (U), and (E) with minor exceptions in the audio subsystem.
 - Naming and documentation of the source code and data structures are in progress.
 - Efforts to decompile the Shindou ROM steadily advance toward a matching build.
-- Beyond Nintendo 64, it can also target Linux and Windows natively.
 
 This repo does not include all assets necessary for compiling the game.
 A prior copy of the game is required to extract the assets.
 
-## Building PS3 executables
-
-The PS3 port is still in development. Expect issues.
-
-### Using Docker
+## Using Docker
 
 0. Ensure Git and Docker are installed on your system.
-1. Check out repo, submodules, etc:
+1. Check out repo, submodules, etc.:
 ```
-git clone https://github.com/fgsfdsfgs/sm64-port.git -b ps3 --recursive
-cd sm64-port
+git clone https://github.com/Aaahoo13/sm64-ps3-port.git -b ps3 --recursive && cd sm64-ps3-port
 ```
-2. Copy in your baserom.XX.z64: `cp /path/to/baserom.us.z64 .`
-3. Build Docker image: `docker build . -t sm64_ps3`
-4. Compile using your Docker image: `docker run --rm -ti -v $(pwd):/sm64 sm64_ps3 make --jobs`
+2. Clone the [ps3toolchain repo](https://github.com/ps3dev/ps3toolchain):
+```
+git clone https://github.com/ps3dev/ps3toolchain.git
+```
+3. Copy in your `baserom.<region>.z64`, where &lt;region> can be us, jp, or eu:
+```
+cp /path/to/baserom.<region>.z64 .
+```
+4. Build Docker image:
+```
+docker build . -t sm64_ps3
+```
+5. Compile using your Docker image.  
+You can precise the region with `VERSION=<region>`, where &lt;region> can be us, jp, or eu (us is default).  
+You can also add `-j4` if ou have 4 cores, for instance, or `-j$(nproc)` if you want to use all the cores.  
+In order to produce the .pkg file, you can have the default PSL1GHT icon without music nor background picture:
+```
+docker run --rm -v $(pwd):/sm64 sm64_ps3 make VERSION=<region> build/<region>_ps3/sm64.<region>.f3dex2e.pkg -j$(nproc)
+```
+To avoid having the default PSL1GHT icon, copy the correct icon (320×176) with the name "ICON0.PNG" into the repository's root directory, and change the Makefile:
+```
+sed -i 's/ICON0[[:space:]]*:=/ICON0     ?=/g' Makefile
+```
+```
+docker run --rm -v $(pwd):/sm64 sm64_ps3 make VERSION=<region> build/<region>_ps3/sm64.<region>.f3dex2e.pkg ICON0=ICON0.PNG -j$(nproc)
+```
+To add the possibility of having a background picture and music, you'll have to copy the picture (1920×1080) with the name "PIC1.PNG" and audio file (ATRAC3 / ATRAC3+) with the name "SND0.AT3" into the repository's root directory, then modify the Makefile:
+```
+sed -i '/ICON0[[:space:]]*?=/a\
+  PIC1      ?= PIC1.PNG\
+  SND0      ?= SND0.AT3' Makefile
+```
+```
+sed -i '/cp $(ICON0)*/a\
+\tcp $(PIC1) $(BUILD_DIR)/pkg/PIC1.PNG\
+\tcp $(SND0) $(BUILD_DIR)/pkg/SND0.AT3' Makefile
+```
+You can then produce the .pkg file with the desired icon, music and background picture:
+```
+docker run --rm -v $(pwd):/sm64 sm64_ps3 make VERSION=<region> build/<region>_ps3/sm64.<region>.f3dex2e.pkg ICON0=ICON0.PNG -j$(nproc)
+```
 
-Alternatively instead of steps 3 and 4 you can use a prebuilt Docker image provided by mkst:
-```docker run --rm -ti -v $(pwd):/sm64 markstreet/sm64:ps3 make --jobs```
+## Manually under Linux (WSL and MSYS2 not tested)
 
-### Manually under Linux (WSL and MSYS2 not tested)
-
-0. Ensure Git, GCC, GNU Make and Python 3 are installed on your system:
+0. Ensure Git, GCC, GNU Make and Python 3 are installed on your system :
 ```
 # for example on Ubuntu
 sudo apt install git build-essential python3
 ```
-1. Ensure PSL1GHT is installed on your system and the environmental variables `PS3DEV` and `PSL1GHT` are defined and PSL1GHT is in your `PATH`.
-You can follow the installation instructions in the [ps3toolchain repo](https://github.com/ps3dev/ps3toolchain).
-2. Install [Cg Toolkit](https://developer.nvidia.com/cg-toolkit-download).
-3. Check out repo, submodules, etc:
+1. Check out repo, submodules, etc.: 
 ```
-git clone https://github.com/fgsfdsfgs/sm64-port.git -b ps3 --recursive
-cd sm64-port
+git clone https://github.com/Aaahoo13/sm64-ps3-port.git -b ps3 --recursive && cd sm64-ps3-port
 ```
-4. Copy in your baserom.XX.z64: `cp /path/to/baserom.us.z64 .`
-5. Compile: `make -j4`
-
-In both cases, the resulting SELF will be in `build/<region>_ps3/`.
-
-There is also an untested PKG target in the Makefile, which can be used like so (replace `us` with your region of choice if needed):
-```make build/us_ps3/sm64.us.f3dex2e.pkg```
-
-The resulting PKG file will be in the same directory as the SELF.
-
-## Building native executables
-
-### Linux
-
-1. Install prerequisites (Ubuntu): `sudo apt install -y git build-essential pkg-config libusb-1.0-0-dev libsdl2-dev`.
-2. Clone the repo: `git clone https://github.com/sm64-port/sm64-port.git`, which will create a directory `sm64-port` and then **enter** it `cd sm64-port`.
-3. Place a Super Mario 64 ROM called `baserom.<VERSION>.z64` into the repository's root directory for asset extraction, where `VERSION` can be `us`, `jp`, or `eu`.
-4. Run `make` to build. Qualify the version through `make VERSION=<VERSION>`. Add `-j4` to improve build speed (hardware dependent based on the amount of CPU cores available).
-5. The executable binary will be located at `build/<VERSION>_pc/sm64.<VERSION>.f3dex2e`.
-
-### Windows
-
-1. Install and update MSYS2, following all the directions listed on https://www.msys2.org/.
-2. From the start menu, launch MSYS2 MinGW and install required packages depending on your machine (do **NOT** launch "MSYS2 MSYS"):
-  * 64-bit: Launch "MSYS2 MinGW 64-bit" and install: `pacman -S git make python3 mingw-w64-x86_64-gcc`
-  * 32-bit (will also work on 64-bit machines): Launch "MSYS2 MinGW 32-bit" and install: `pacman -S git make python3 mingw-w64-i686-gcc`
-  * Do **NOT** by mistake install the package called simply `gcc`.
-3. The MSYS2 terminal has a _current working directory_ that initially is `C:\msys64\home\<username>` (home directory). At the prompt, you will see the current working directory in yellow. `~` is an alias for the home directory. You can change the current working directory to `My Documents` by entering `cd /c/Users/<username>/Documents`.
-4. Clone the repo: `git clone https://github.com/sm64-port/sm64-port.git`, which will create a directory `sm64-port` and then **enter** it `cd sm64-port`.
-5. Place a *Super Mario 64* ROM called `baserom.<VERSION>.z64` into the repository's root directory for asset extraction, where `VERSION` can be `us`, `jp`, or `eu`.
-6. Run `make` to build. Qualify the version through `make VERSION=<VERSION>`. Add `-j4` to improve build speed (hardware dependent based on the amount of CPU cores available).
-7. The executable binary will be located at `build/<VERSION>_pc/sm64.<VERSION>.f3dex2e.exe` inside the repository.
-
-#### Troubleshooting
-
-1. If you get `make: gcc: command not found` or `make: gcc: No such file or directory` although the packages did successfully install, you probably launched the wrong MSYS2. Read the instructions again. The terminal prompt should contain "MINGW32" or "MINGW64" in purple text, and **NOT** "MSYS".
-2. If you get `Failed to open baserom.us.z64!` you failed to place the baserom in the repository. You can write `ls` to list the files in the current working directory. If you are in the `sm64-port` directory, make sure you see it here.
-3. If you get `make: *** No targets specified and no makefile found. Stop.`, you are not in the correct directory. Make sure the yellow text in the terminal ends with `sm64-port`. Use `cd <dir>` to enter the correct directory. If you write `ls` you should see all the project files, including `Makefile` if everything is correct.
-4. If you get any error, be sure MSYS2 packages are up to date by executing `pacman -Syu` and `pacman -Su`. If the MSYS2 window closes immediately after opening it, restart your computer.
-5. When you execute `gcc -v`, be sure you see `Target: i686-w64-mingw32` or `Target: x86_64-w64-mingw32`. If you see `Target: x86_64-pc-msys`, you either opened the wrong MSYS start menu entry or installed the incorrect gcc package.
-
-### Debugging
-
-The code can be debugged using `gdb`. On Linux install the `gdb` package and execute `gdb <executable>`. On MSYS2 install by executing `pacman -S winpty gdb` and execute `winpty gdb <executable>`. The `winpty` program makes sure the keyboard works correctly in the terminal. Also consider changing the `-mwindows` compile flag to `-mconsole` to be able to see stdout/stderr as well as be able to press Ctrl+C to interrupt the program. In the Makefile, make sure you compile the sources using `-g` rather than `-O2` to include debugging symbols. See any online tutorial for how to use gdb.
-
-## ROM building
-
-It is possible to build N64 ROMs as well with this repository. See https://github.com/n64decomp/sm64 for instructions.
+2. Clone the [ps3toolchain repo](https://github.com/ps3dev/ps3toolchain):
+```
+git clone https://github.com/ps3dev/ps3toolchain.git
+```
+3. Ensure PSL1GHT is installed on your system and the environmental variables `PS3DEV` and `PSL1GHT` are defined and PSL1GHT is in your `PATH`. You can follow the installation instructions in the [ps3toolchain repo](https://github.com/ps3dev/ps3toolchain).
+4. Install [Cg Toolkit](https://developer.nvidia.com/cg-toolkit-download).
+5. Copy in your `baserom.<region>.z64`, where &lt;region> can be us, jp, or eu:
+```
+cp /path/to/baserom.<region>.z64 .
+```
+6. Follow the same last step as the Docker version without `docker run --rm -v $(pwd):/sm64 sm64_ps3` at the beginning of the commands.
 
 ## Project Structure
 
@@ -126,9 +115,8 @@ sm64
 
 ## Contributing
 
-Pull requests are welcome. For major changes, please open an issue first to
-discuss what you would like to change.
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
 Run `clang-format` on your code to ensure it meets the project's coding standards.
 
-Official Discord: https://discord.gg/7bcNTPK
+Official Discord: [https://discord.gg/7bcNTPK](https://discord.gg/7bcNTPK)
