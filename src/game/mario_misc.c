@@ -99,6 +99,55 @@ Gfx *geo_draw_mario_head_goddard(s32 callContext, struct GraphNode *node, Mat4 *
     return gfx;
 }
 
+/**
+ * Draw the Goddard hand only in widescreen side regions.
+ *
+ * Goddard's own csrX/csrY remain clamped to the original 320x240 interaction
+ * space. When presentation X leaves that space, update_cursor() hides the
+ * fixed-view hand and this normal game-side orthographic path draws the same
+ * Goddard texture instead.
+ */
+Gfx *geo_draw_goddard_widescreen_cursor(s32 callContext, UNUSED struct GraphNode *node,
+                                        UNUSED Mat4 *c) {
+    if (callContext == GEO_CONTEXT_RENDER && gd_cursor_is_visible()
+        && gd_cursor_uses_widescreen_overlay()) {
+        const s32 x = gd_get_cursor_presentation_x();
+        const s32 y = gd_get_cursor_y();
+
+        /*
+         * Goddard's native PutSprite path uses an RDP texture rectangle.
+         * The PC/Xbox renderer gives texture rectangles a full-screen
+         * viewport, allowing signed F3DEX2E X coordinates to reach the
+         * widescreen side regions without widening Goddard interaction.
+         */
+        gDPPipeSync(gDisplayListHead++);
+        gDPSetCycleType(gDisplayListHead++, G_CYC_1CYCLE);
+        gSPClearGeometryMode(gDisplayListHead++, G_CULL_FRONT | G_CULL_BACK);
+        gSPTexture(gDisplayListHead++, 0x8000, 0x8000, 0, G_TX_RENDERTILE, G_ON);
+        gDPSetAlphaCompare(gDisplayListHead++, G_AC_THRESHOLD);
+        gDPSetBlendColor(gDisplayListHead++, 0, 0, 0, 1);
+        gDPSetRenderMode(gDisplayListHead++, G_RM_AA_TEX_EDGE, G_RM_AA_TEX_EDGE2);
+        gDPSetCombineMode(gDisplayListHead++, G_CC_DECALRGBA, G_CC_DECALRGBA);
+        gDPSetTextureFilter(gDisplayListHead++, G_TF_BILERP);
+        gDPSetTexturePersp(gDisplayListHead++, G_TP_NONE);
+
+        gDPLoadTextureBlock(gDisplayListHead++, gd_get_cursor_texture(), G_IM_FMT_RGBA, G_IM_SIZ_16b,
+                            32, 32, 0, G_TX_WRAP | G_TX_NOMIRROR, G_TX_WRAP | G_TX_NOMIRROR,
+                            G_TX_NOMASK, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOLOD);
+
+        gSPTextureRectangle(gDisplayListHead++, x * 4, y * 4, (x + 32) * 4, (y + 32) * 4,
+                            G_TX_RENDERTILE, 0, 0, 1 << 10, 1 << 10);
+
+        gDPPipeSync(gDisplayListHead++);
+        gDPSetAlphaCompare(gDisplayListHead++, G_AC_NONE);
+        gSPTexture(gDisplayListHead++, 0x0001, 0x0001, 0, G_TX_RENDERTILE, G_OFF);
+        gDPSetRenderMode(gDisplayListHead++, G_RM_AA_ZB_OPA_SURF, G_RM_AA_ZB_OPA_SURF2);
+        gDPSetCombineMode(gDisplayListHead++, G_CC_SHADE, G_CC_SHADE);
+    }
+
+    return NULL;
+}
+
 static void toad_message_faded(void) {
     if (gCurrentObject->oDistanceToMario > 700.0f) {
         gCurrentObject->oToadMessageRecentlyTalked = FALSE;

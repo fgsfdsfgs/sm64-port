@@ -13,10 +13,23 @@
 #include "game/ingame_menu.h"
 #include "game/object_helpers.h"
 #include "game/object_list_processor.h"
+#include "game/rendering_graph_node.h"
 #include "game/print.h"
 #include "game/save_file.h"
 #include "game/segment2.h"
 #include "game/segment7.h"
+#include "gfx_dimensions.h"
+
+extern const Gfx dl_menu_mario_save_button_base[];
+extern const Gfx dl_menu_mario_new_button_base[];
+extern const Gfx dl_menu_save_button_back[];
+extern const Gfx dl_menu_save_button_fade_back[];
+extern const Gfx dl_menu_erase_button[];
+extern const Gfx dl_menu_copy_button[];
+extern const Gfx dl_menu_file_button[];
+extern const Gfx dl_menu_score_button[];
+extern const Gfx dl_menu_sound_button[];
+extern const Gfx dl_menu_generic_button[];
 #include "game/spawn_object.h"
 #include "sm64.h"
 #include "text_strings.h"
@@ -304,6 +317,129 @@ static unsigned char starIcon[] = { GLYPH_STAR, GLYPH_SPACE };
 static unsigned char xIcon[] = { GLYPH_MULTIPLY, GLYPH_SPACE };
 #endif
 
+static f32 menu_widescreen_background_scale_x(void) {
+#ifdef WIDESCREEN
+    return GFX_DIMENSIONS_ASPECT_RATIO / (4.0f / 3.0f);
+#else
+    return 1.0f;
+#endif
+}
+
+static f32 menu_button_widescreen_scale_x(struct Object *button) {
+    f32 scaleX = 1.0f;
+#ifdef WIDESCREEN
+    f32 widescreenScale = menu_widescreen_background_scale_x();
+
+    switch (button->oMenuButtonState) {
+        case MENU_BUTTON_STATE_GROWING:
+            scaleX += (widescreenScale - 1.0f) * (button->oMenuButtonTimer / 16.0f);
+            break;
+        case MENU_BUTTON_STATE_FULLSCREEN:
+            scaleX = widescreenScale;
+            break;
+        case MENU_BUTTON_STATE_SHRINKING:
+            scaleX = widescreenScale - (widescreenScale - 1.0f) * (button->oMenuButtonTimer / 16.0f);
+            break;
+    }
+#endif
+    return scaleX;
+}
+
+Gfx *geo_menu_button_widescreen_model(s32 callContext, struct GraphNode *node, UNUSED Mat4 mtx) {
+    struct GraphNodeGenerated *generatedNode = (struct GraphNodeGenerated *) node;
+    struct Object *button;
+    Gfx *displayList;
+    Gfx *displayListIter;
+    Mtx *scaleMtx = NULL;
+    f32 scaleX;
+
+    if (callContext != GEO_CONTEXT_RENDER) {
+        return NULL;
+    }
+
+    button = (struct Object *) gCurGraphNodeObject;
+    if (button == NULL) {
+        return NULL;
+    }
+
+    scaleX = menu_button_widescreen_scale_x(button);
+#ifdef WIDESCREEN
+    if (scaleX != 1.0f) {
+        scaleMtx = alloc_display_list(sizeof(*scaleMtx));
+        if (scaleMtx == NULL) {
+            return NULL;
+        }
+        guScale(scaleMtx, scaleX, 1.0f, 1.0f);
+    }
+#endif
+
+    generatedNode->fnNode.node.flags = 0x100 | (generatedNode->fnNode.node.flags & 0xFF);
+    displayList = alloc_display_list(6 * sizeof(*displayList));
+    if (displayList == NULL) {
+        return NULL;
+    }
+
+    displayListIter = displayList;
+
+    if (scaleMtx != NULL) {
+        gSPMatrix(displayListIter++, scaleMtx, G_MTX_MODELVIEW | G_MTX_MUL | G_MTX_PUSH);
+    }
+
+    switch (generatedNode->parameter) {
+        case MENU_WIDE_MODEL_MARIO_SAVE:
+            gSPDisplayList(displayListIter++, dl_menu_mario_save_button_base);
+            gSPDisplayList(displayListIter++, dl_menu_save_button_back);
+            break;
+        case MENU_WIDE_MODEL_MARIO_SAVE_FADE:
+            gSPDisplayList(displayListIter++, dl_menu_mario_save_button_base);
+            gSPDisplayList(displayListIter++, dl_menu_save_button_fade_back);
+            break;
+        case MENU_WIDE_MODEL_MARIO_NEW:
+            gSPDisplayList(displayListIter++, dl_menu_mario_new_button_base);
+            gSPDisplayList(displayListIter++, dl_menu_save_button_back);
+            break;
+        case MENU_WIDE_MODEL_MARIO_NEW_FADE:
+            gSPDisplayList(displayListIter++, dl_menu_mario_new_button_base);
+            gSPDisplayList(displayListIter++, dl_menu_save_button_fade_back);
+            break;
+        case MENU_WIDE_MODEL_ERASE:
+            gSPDisplayList(displayListIter++, dl_menu_erase_button);
+            break;
+        case MENU_WIDE_MODEL_COPY:
+            gSPDisplayList(displayListIter++, dl_menu_copy_button);
+            break;
+        case MENU_WIDE_MODEL_FILE:
+            gSPDisplayList(displayListIter++, dl_menu_file_button);
+            break;
+        case MENU_WIDE_MODEL_SCORE:
+            gSPDisplayList(displayListIter++, dl_menu_score_button);
+            break;
+        case MENU_WIDE_MODEL_SOUND:
+            gSPDisplayList(displayListIter++, dl_menu_sound_button);
+            break;
+        case MENU_WIDE_MODEL_GENERIC:
+            gSPDisplayList(displayListIter++, dl_menu_generic_button);
+            break;
+        default:
+            return NULL;
+    }
+
+    if (scaleMtx != NULL) {
+        gSPPopMatrix(displayListIter++, G_MTX_MODELVIEW);
+    }
+    gSPEndDisplayList(displayListIter);
+
+    return displayList;
+}
+
+static f32 menu_cursor_bound_x(void) {
+#ifdef WIDESCREEN
+    return GFX_DIMENSIONS_FROM_RIGHT_EDGE(28.0f) - (SCREEN_WIDTH / 2.0f);
+#else
+    return 132.0f;
+#endif
+}
+
 /**
  * Yellow Background Menu Initial Action
  * Rotates the background at 180 grades and it's scale.
@@ -320,6 +456,7 @@ void beh_yellow_background_menu_init(void) {
  */
 void beh_yellow_background_menu_loop(void) {
     cur_obj_scale(9.0f);
+    gCurrentObject->header.gfx.scale[0] *= menu_widescreen_background_scale_x();
 }
 
 /**
@@ -1615,12 +1752,16 @@ void handle_controller_cursor_input(void) {
     sCursorPos[0] += rawStickX / 8;
     sCursorPos[1] += rawStickY / 8;
 
-    // Stop cursor from going offscreen
-    if (sCursorPos[0] > 132.0f) {
-        sCursorPos[0] = 132.0f;
-    }
-    if (sCursorPos[0] < -132.0f) {
-        sCursorPos[0] = -132.0f;
+    // Stop cursor from going offscreen while preserving the original 28px horizontal edge margin.
+    {
+        f32 cursorBoundX = menu_cursor_bound_x();
+
+        if (sCursorPos[0] > cursorBoundX) {
+            sCursorPos[0] = cursorBoundX;
+        }
+        if (sCursorPos[0] < -cursorBoundX) {
+            sCursorPos[0] = -cursorBoundX;
+        }
     }
 
     if (sCursorPos[1] > 90.0f) {

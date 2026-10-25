@@ -6,6 +6,8 @@
 #include "prevent_bss_reordering.h"
 #endif
 #include "debug_utils.h"
+#include "sm64.h"
+#include "gfx_dimensions.h"
 #include "draw_objects.h"
 #include "dynlist_proc.h"
 #include "dynlists/dynlists.h"
@@ -220,6 +222,8 @@ static struct ObjView *sActiveView = NULL;  // @ 801A86D8 current view? used whe
 static struct ObjView *sScreenView2 = NULL; // @ 801A86DC
 static struct ObjView *D_801A86E0 = NULL;
 static struct ObjView *sHandView = NULL; // @ 801A86E4
+static s32 sGdCursorPresentationX = 160;
+static s32 sGdCursorVisible = FALSE;
 static struct ObjView *sMenuView = NULL; // @ 801A86E8
 static u32 sItemsInMenu = 0;             // @ 801A86EC
 static s32 D_801A86F0 = 0;               // frame buffer idx into D_801BD7A0?
@@ -1243,6 +1247,7 @@ void gdm_maketestdl(s32 id) {
                 sMarioSceneGrp = gMarioFaceGrp; // gMarioFaceGrp set by load_mario_head
                 gd_setup_cursor(NULL);
             }
+            sGdCursorPresentationX = gGdCtrl.csrX;
             sMSceneView = make_view_withgrp("mscene", sMarioSceneGrp);
             break;
         case 3: // game over Mario head
@@ -1251,6 +1256,7 @@ void gdm_maketestdl(s32 id) {
                 sMarioSceneGrp = gMarioFaceGrp;
                 gd_setup_cursor(NULL);
             }
+            sGdCursorPresentationX = gGdCtrl.csrX;
             sMSceneView = make_view_withgrp("mscene", sMarioSceneGrp);
             break;
         case 4:
@@ -1311,6 +1317,37 @@ void gd_copy_p1_contpad(OSContPad *p1cont) {
 /* 24B058 -> 24B088; orig name: gd_sfx_to_play */
 s32 gd_sfx_to_play(void) {
     return gd_new_sfx_to_play();
+}
+
+s32 gd_get_cursor_presentation_x(void) {
+    return sGdCursorPresentationX;
+}
+
+s32 gd_get_cursor_y(void) {
+    return gGdCtrl.csrY;
+}
+
+s32 gd_cursor_is_visible(void) {
+    return sGdCursorVisible;
+}
+
+s32 gd_cursor_is_grabbing(void) {
+    return gGdCtrl.btnApressed;
+}
+
+s32 gd_cursor_uses_widescreen_overlay(void) {
+    /*
+     * The texture-rectangle presentation hand is now the sole visible cursor.
+     * Goddard's csrX/csrY still remain authoritative for picking/dragging.
+     */
+    return TRUE;
+}
+
+const u8 *gd_get_cursor_texture(void) {
+    if (gGdCtrl.btnApressed) {
+        return gd_texture_hand_closed;
+    }
+    return gd_texture_hand_open;
 }
 
 /* 24B088 -> 24B418 */
@@ -2378,6 +2415,8 @@ void parse_p1_controller(void) {
     OSContPad *p1contPrev;    // 30
     u8 *gdCtrlBytes;          // 2C
     u8 *prevGdCtrlBytes;      // 28
+    s32 cursorPresentationLeft;
+    s32 cursorPresentationRight;
 
     gdctrl = &gGdCtrl;
     gdCtrlBytes = (u8 *) gdctrl;
@@ -2468,12 +2507,31 @@ void parse_p1_controller(void) {
     }
     // deadzone checks?
     if (ABS(gdctrl->stickX) >= 6) {
-        gdctrl->csrX += gdctrl->stickX * 0.1; //? 0.1f
+        sGdCursorPresentationX += gdctrl->stickX * 0.1; //? 0.1f
     }
 
     if (ABS(gdctrl->stickY) >= 6) {
         gdctrl->csrY -= gdctrl->stickY * 0.1; //? 0.1f
     }
+
+    /*
+     * Keep Goddard's interaction cursor inside its original 320-wide
+     * coordinate space. A separate presentation X may travel into the
+     * widescreen side regions; the game-side geo callback renders the
+     * visible hand there without feeding those coordinates into Goddard.
+     */
+    cursorPresentationLeft = GFX_DIMENSIONS_RECT_FROM_LEFT_EDGE(16);
+    cursorPresentationRight = GFX_DIMENSIONS_RECT_FROM_RIGHT_EDGE(48);
+
+    if (sGdCursorPresentationX < cursorPresentationLeft) {
+        sGdCursorPresentationX = cursorPresentationLeft;
+    }
+    if (sGdCursorPresentationX > cursorPresentationRight) {
+        sGdCursorPresentationX = cursorPresentationRight;
+    }
+
+    gdctrl->csrX = sGdCursorPresentationX;
+
     // border checks? is this for the cursor finger movement?
     if ((f32) gdctrl->csrX < (sScreenView2->parent->upperLeft.x + 16.0f)) {
         gdctrl->csrX = (s32)(sScreenView2->parent->upperLeft.x + 16.0f);
@@ -3000,8 +3058,16 @@ void update_cursor(void) {
         return;
     }
 
-    if (gGdCtrl.frameCount - gGdCtrl.frameAbtnPressed < 300) {
-        sHandView->flags |= VIEW_UPDATE;
+    sGdCursorVisible = (gGdCtrl.frameCount - gGdCtrl.frameAbtnPressed < 300);
+
+    if (sGdCursorVisible) {
+        /*
+         * Keep the original Goddard hand view suppressed. The game-side
+         * texture-rectangle callback draws the one visible presentation hand
+         * everywhere, avoiding native/overlay duplication during dragging.
+         */
+        sHandView->flags &= ~VIEW_UPDATE;
+
         // by playing the sfx every frame, it will only play once as it
         // never leaves the "sfx played last frame" buffer
         gd_play_sfx(GD_SFX_HAND_APPEAR);
@@ -3230,6 +3296,8 @@ void gd_init(void) {
     gGdCtrl.prevFrame = &gGdCtrlPrev;
     gGdCtrl.csrX = 160;
     gGdCtrl.csrY = 120;
+    sGdCursorPresentationX = gGdCtrl.csrX;
+    sGdCursorVisible = FALSE;
     gGdCtrl.frameAbtnPressed = -1000;
     D_801BB0AC = create_mtl_gddl(4);
     imout();

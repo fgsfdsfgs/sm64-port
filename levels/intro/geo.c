@@ -4,6 +4,7 @@
 
 #include "game/level_geo.h"
 #include "game/geo_misc.h"
+#include "game/mario_misc.h"
 #include "game/camera.h"
 #include "game/moving_texture.h"
 #include "game/screen_transition.h"
@@ -46,46 +47,54 @@ const GeoLayout intro_geo_0002D0[] = {
 
 // 0x0E00035C
 const GeoLayout intro_geo_00035C[] = {
-   GEO_NODE_SCREEN_AREA(0, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, SCREEN_WIDTH/2, SCREEN_HEIGHT/2),
-   GEO_OPEN_NODE(),
-      GEO_ZBUFFER(0),
-      GEO_OPEN_NODE(),
-         GEO_NODE_ORTHO(100),
-         GEO_OPEN_NODE(),
-            GEO_ASM(0, geo_intro_backdrop),
-         GEO_CLOSE_NODE(),
-      GEO_CLOSE_NODE(),
-      GEO_ZBUFFER(1),
-      GEO_OPEN_NODE(),
-         GEO_CAMERA_FRUSTUM(45, 128, 16384),
-         GEO_OPEN_NODE(),
-            GEO_ASM(2, geo_draw_mario_head_goddard),
-         GEO_CLOSE_NODE(),
-      GEO_CLOSE_NODE(),
-   GEO_CLOSE_NODE(),
-   GEO_END(),
+    GEO_NODE_SCREEN_AREA(0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
+    GEO_OPEN_NODE(),
+    GEO_ZBUFFER(0),
+    GEO_OPEN_NODE(),
+    GEO_NODE_ORTHO(100),
+    GEO_OPEN_NODE(),
+    GEO_ASM(0, geo_intro_backdrop),
+    GEO_CLOSE_NODE(),
+    GEO_CLOSE_NODE(),
+    GEO_ZBUFFER(1),
+    GEO_OPEN_NODE(),
+    GEO_CAMERA_FRUSTUM(45, 128, 16384),
+    GEO_OPEN_NODE(),
+    GEO_ASM(2, geo_draw_mario_head_goddard),
+    GEO_CLOSE_NODE(),
+    GEO_CLOSE_NODE(),
+    GEO_ZBUFFER(0),
+    GEO_OPEN_NODE(),
+    GEO_ASM(2, geo_draw_goddard_widescreen_cursor),
+    GEO_CLOSE_NODE(),
+    GEO_CLOSE_NODE(),
+    GEO_END(),
 };
 
 // 0x0E0003B8
 const GeoLayout intro_geo_0003B8[] = {
-   GEO_NODE_SCREEN_AREA(0, SCREEN_WIDTH/2, SCREEN_HEIGHT/2, SCREEN_WIDTH/2, SCREEN_HEIGHT/2),
-   GEO_OPEN_NODE(),
-      GEO_ZBUFFER(0),
-      GEO_OPEN_NODE(),
-         GEO_NODE_ORTHO(100),
-         GEO_OPEN_NODE(),
-            GEO_ASM(0, geo_game_over_tile),
-         GEO_CLOSE_NODE(),
-      GEO_CLOSE_NODE(),
-      GEO_ZBUFFER(1),
-      GEO_OPEN_NODE(),
-         GEO_CAMERA_FRUSTUM(45, 128, 16384),
-         GEO_OPEN_NODE(),
-            GEO_ASM(3, geo_draw_mario_head_goddard),
-         GEO_CLOSE_NODE(),
-      GEO_CLOSE_NODE(),
-   GEO_CLOSE_NODE(),
-   GEO_END(),
+    GEO_NODE_SCREEN_AREA(0, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
+    GEO_OPEN_NODE(),
+    GEO_ZBUFFER(0),
+    GEO_OPEN_NODE(),
+    GEO_NODE_ORTHO(100),
+    GEO_OPEN_NODE(),
+    GEO_ASM(0, geo_game_over_tile),
+    GEO_CLOSE_NODE(),
+    GEO_CLOSE_NODE(),
+    GEO_ZBUFFER(1),
+    GEO_OPEN_NODE(),
+    GEO_CAMERA_FRUSTUM(45, 128, 16384),
+    GEO_OPEN_NODE(),
+    GEO_ASM(3, geo_draw_mario_head_goddard),
+    GEO_CLOSE_NODE(),
+    GEO_CLOSE_NODE(),
+    GEO_ZBUFFER(0),
+    GEO_OPEN_NODE(),
+    GEO_ASM(3, geo_draw_goddard_widescreen_cursor),
+    GEO_CLOSE_NODE(),
+    GEO_CLOSE_NODE(),
+    GEO_END(),
 };
 
 // 0x0E000414
