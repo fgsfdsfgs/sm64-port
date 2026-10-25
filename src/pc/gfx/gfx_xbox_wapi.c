@@ -70,11 +70,39 @@ static void gfx_xbox_wapi_handle_events(void) {
 }
 
 static bool gfx_xbox_wapi_start_frame(void) {
-    pb_wait_for_vbl(); // comment this one out if porting 60fps patch
-    pb_wait_for_vbl();
+    static DWORD lastPacedVblank;
+    DWORD currentVblank;
+    DWORD targetVblank;
+
+    /*
+     * Pace from pbkit's VBlank counter rather than rounded millisecond
+     * timing. SM64 advances one game frame per two 60 Hz refreshes.
+     *
+     * If rendering already consumed two or more VBlanks, start a new cadence
+     * from the current display phase so a late frame is not delayed again.
+     * PFIFO synchronization remains unchanged.
+     */
+    currentVblank = pb_get_vbl_counter();
+
+    if (lastPacedVblank == 0) {
+        targetVblank = currentVblank + 2;
+    } else if ((DWORD) (currentVblank - lastPacedVblank) >= 2) {
+        targetVblank = currentVblank;
+    } else {
+        targetVblank = lastPacedVblank + 2;
+    }
+
+    while ((int32_t) (pb_get_vbl_counter() - targetVblank) < 0) {
+        pb_wait_for_vbl();
+    }
+
+    lastPacedVblank = pb_get_vbl_counter();
+
     pb_reset();
     pb_target_back_buffer();
+
     while (pb_busy());
+
     return true;
 }
 
