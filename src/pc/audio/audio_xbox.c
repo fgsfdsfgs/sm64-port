@@ -136,6 +136,17 @@ static inline void convert_block(int16_t *out, const int16_t *in) {
 static void audio_callback(UNUSED void *dev, UNUSED void *arg) {
     static int16_t inbuf[NUM_SAMPLES_32KHZ * 2];
     const size_t rx = sndqueue_read(inbuf, sizeof(inbuf));
+
+    /*
+     * A short queue read means the producer fell behind. Do not resample
+     * stale bytes left in this persistent buffer from the previous callback.
+     * Silence only the unread tail; queue synchronization is otherwise
+     * unchanged.
+     */
+    if (rx < sizeof(inbuf)) {
+        memset((uint8_t *) inbuf + rx, 0, sizeof(inbuf) - rx);
+    }
+
     convert_block(audio_buffer[audio_buffer_cur], inbuf);
     XAudioProvideSamples((uint8_t *)audio_buffer[audio_buffer_cur], BUF_SIZE, FALSE);
     audio_buffer_cur = !audio_buffer_cur;
@@ -143,6 +154,13 @@ static void audio_callback(UNUSED void *dev, UNUSED void *arg) {
 
 
 static bool audio_xbox_init(void) {
+    qhead = NULL;
+    qtail = NULL;
+    qpool = NULL;
+    queued = 0;
+    audio_buffer_cur = 0;
+    memset(audio_buffer, 0, sizeof(audio_buffer));
+
     XAudioInit(16, 2, audio_callback, NULL);
 
     // this double-buffers
