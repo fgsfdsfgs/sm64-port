@@ -17,12 +17,6 @@
 #include "gfx_xbox.h"
 #include "macros.h"
 
-#ifdef VERSION_EU
-#define REFRESH_RATE REFRESH_50HZ
-#else
-#define REFRESH_RATE REFRESH_60HZ
-#endif
-
 int win_width;
 int win_height;
 
@@ -30,20 +24,28 @@ static void gfx_xbox_wapi_init(const char *game_name, bool start_in_fullscreen) 
     int status;
 
     // try 720p first
-    status = XVideoSetMode(1280, 720, 32, REFRESH_RATE);
+    status = XVideoSetMode(1280, 720, 32, REFRESH_DEFAULT);
 
     // fall back to 640x480
-    if (!status) XVideoSetMode(640, 480, 32, REFRESH_RATE);
+    if (!status)
+        XVideoSetMode(640, 480, 32, REFRESH_DEFAULT);
 
     if ((status = pb_init())) {
         debugPrint("gfx_xbox_wapi_init: pb_init failed: %d\n", status);
         while (1) Sleep(100);
     }
 
-    pb_show_front_screen();
-
     win_width = pb_back_buffer_width();
     win_height = pb_back_buffer_height();
+
+    pb_reset();
+    pb_target_back_buffer();
+    pb_erase_depth_stencil_buffer(0, 0, win_width, win_height);
+    pb_fill(0, 0, win_width, win_height, 0x00000000);
+    while (pb_busy())
+        ;
+
+    pb_show_front_screen();
 
     debugPrint("gfx_xbox_wapi_init: resolution %dx%d\n", win_width, win_height);
 }

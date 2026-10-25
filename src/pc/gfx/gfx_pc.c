@@ -254,10 +254,22 @@ static bool gfx_texture_cache_lookup(int tile, struct TextureHashmapNode **n, co
         node = &(*node)->next;
     }
     if (gfx_texture_cache.pool_pos == sizeof(gfx_texture_cache.pool) / sizeof(struct TextureHashmapNode)) {
-        // Pool is full. We just invalidate everything and start over.
+        /*
+         * A logical-cache generation is not invalid until every bucket head
+         * is detached from the old pool contents. Resetting only pool_pos can
+         * make stale bucket pointers eligible again as new slots are reused.
+         */
+        memset(gfx_texture_cache.hashmap, 0, sizeof(gfx_texture_cache.hashmap));
         gfx_texture_cache.pool_pos = 0;
+
+        /*
+         * rendering_state.textures[] points into the same pool. Force both
+         * tiles through import_texture before either old node is used again.
+         */
+        rdp.textures_changed[0] = true;
+        rdp.textures_changed[1] = true;
+
         node = &gfx_texture_cache.hashmap[hash];
-        //puts("Clearing texture cache");
     }
     *node = &gfx_texture_cache.pool[gfx_texture_cache.pool_pos++];
     if ((*node)->texture_addr == NULL) {

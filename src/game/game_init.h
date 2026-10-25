@@ -9,7 +9,9 @@
 #include "types.h"
 #include "memory.h"
 
-#ifdef USE_SYSTEM_MALLOC
+#if defined(TARGET_XBOX)
+#define GFX_POOL_SIZE 8192
+#elif defined(USE_SYSTEM_MALLOC)
 #define GFX_POOL_SIZE 1
 #else
 #define GFX_POOL_SIZE 6400
