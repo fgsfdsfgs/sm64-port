@@ -142,7 +142,7 @@ ifeq ($(GRUCODE),f3d_new) # Fast3D 2.0H (Shindou)
   TARGET := $(TARGET).f3d_new
   COMPARE := 0
 else
-ifeq ($(GRUCODE),f3dzex) # Fast3DZEX (2.0J / Animal Forest - Dōbutsu no Mori)
+ifeq ($(GRUCODE),f3dzex) # Fast3DZEX (2.0J / Animal Forest - D┼ìbutsu no Mori)
   $(warning Fast3DZEX is experimental. Try at your own risk.)
   GRUCODE_DEF := F3DEX_GBI_2
   GRUCODE_ASFLAGS := --defsym F3DEX_GBI_SHARED=1
@@ -291,6 +291,10 @@ ifeq ($(TARGET_N64),1)
 endif
 GENERATED_C_FILES := $(BUILD_DIR)/assets/mario_anim_data.c $(BUILD_DIR)/assets/demo_data.c \
   $(addprefix $(BUILD_DIR)/bin/,$(addsuffix _skybox.c,$(notdir $(basename $(wildcard textures/skyboxes/*.png)))))
+
+ifeq ($(TARGET_XBOX),1)
+  GENERATED_C_FILES += $(BUILD_DIR)/xbox/save_metadata.c
+endif
 
 ifeq ($(TARGET_WINDOWS),0)
   CXX_FILES :=
@@ -604,6 +608,15 @@ nxdkclean:
 
 shaderclean:
 	$(RM) -r $(EXE) $(GEN_XISO) $(SHADERDB_FILE) $(OUTPUT_DIR) $(BUILD_DIR)/xbox/shaders
+
+XBOX_TITLE_IMAGE_SOURCE := $(BUILD_DIR)/textures/segment2/segment2.05A00.rgba16
+XBOX_SAVE_IMAGE_SOURCE := $(BUILD_DIR)/textures/segment2/segment2.05C00.rgba16
+XBOX_SAVE_METADATA_C := $(BUILD_DIR)/xbox/save_metadata.c
+XBOX_SAVE_METADATA_REPORT := $(BUILD_DIR)/xbox/save_metadata_report.json
+
+$(XBOX_SAVE_METADATA_C): $(XBOX_TITLE_IMAGE_SOURCE) $(XBOX_SAVE_IMAGE_SOURCE) tools/gen_xbox_save_metadata.py
+	@mkdir -p $(dir $@)
+	$(PYTHON) tools/gen_xbox_save_metadata.py --title-input $(XBOX_TITLE_IMAGE_SOURCE) --save-input $(XBOX_SAVE_IMAGE_SOURCE) --output $@ --report $(XBOX_SAVE_METADATA_REPORT)
 
 $(BUILD_DIR)/src/pc/gfx/gfx_xbox_rapi.o: $(SHADERDB_FILE)
 
