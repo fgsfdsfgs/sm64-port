@@ -448,13 +448,15 @@ CPP := clang-cpp -P
 
 NXDK_LIBS := \
   $(NXDK_DIR)/lib/pbkit/pbkit.obj \
+  $(NXDK_DIR)/lib/xboxkrnl/libxboxkrnl.lib \
   $(NXDK_DIR)/lib/libpdclib.lib \
+  $(NXDK_DIR)/lib/winmm.lib \
   $(NXDK_DIR)/lib/libwinapi.lib \
   $(NXDK_DIR)/lib/libnxdk_hal.lib \
   $(NXDK_DIR)/lib/libnxdk.lib \
-  $(NXDK_DIR)/lib/libnxdk_usb.lib \
+  $(NXDK_DIR)/lib/nxdk_usb.lib \
   $(NXDK_DIR)/lib/libxboxrt.lib \
-  $(NXDK_DIR)/lib/xboxkrnl/libxboxkrnl.lib
+  $(NXDK_DIR)/lib/libSDL2.lib
 
 SHADERDIR := xbox/shaders
 VSHADERS := $(wildcard $(SHADERDIR)/*.vs.cg)
@@ -502,7 +504,7 @@ ifeq ($(TARGET_WEB),1)
   PLATFORM_LDFLAGS := -lm -no-pie -s TOTAL_MEMORY=20MB -g4 --source-map-base http://localhost:8080/ -s "EXTRA_EXPORTED_RUNTIME_METHODS=['callMain']"
 endif
 ifeq ($(TARGET_XBOX),1)
-  PLATFORM_CFLAGS  := $(NXDK_CFLAGS) -Ixbox -DTARGET_XBOX -D_USE_MATH_DEFINES -DXBE_TITLE_ID=$(XBE_TITLE_ID)
+  PLATFORM_CFLAGS  := $(NXDK_CFLAGS) -I$(NXDK_DIR)/lib/sdl/SDL2/include -Ixbox -DTARGET_XBOX -DXBOX -D_USE_MATH_DEFINES -DXBE_TITLE_ID=$(XBE_TITLE_ID)
   PLATFORM_LDFLAGS := $(NXDK_LDFLAGS)
   PLATFORM_ASFLAGS := $(NXDK_ASFLAGS) -c
   ifeq ($(DEBUG),y)
@@ -547,6 +549,11 @@ GFX_CFLAGS += -DWIDESCREEN
 
 CC_CHECK := $(CC) -fsyntax-only -fsigned-char $(INCLUDE_CFLAGS) -Wall -Wextra -Wno-format-security -D_LANGUAGE_C $(VERSION_CFLAGS) $(MATCH_CFLAGS) $(PLATFORM_CFLAGS) $(GFX_CFLAGS) $(GRUCODE_CFLAGS)
 CFLAGS := $(OPT_FLAGS) $(INCLUDE_CFLAGS) -D_LANGUAGE_C $(VERSION_CFLAGS) $(MATCH_CFLAGS) $(PLATFORM_CFLAGS) $(GFX_CFLAGS) $(GRUCODE_CFLAGS) -fno-strict-aliasing -fwrapv
+
+ifeq ($(TARGET_XBOX),1)
+SM64_XBOX_APP_O_FILES := $(O_FILES) $(SOUND_OBJ_FILES) $(ULTRA_O_FILES) $(GODDARD_O_FILES)
+$(SM64_XBOX_APP_O_FILES): CFLAGS += -Datan2f=sm64_atan2f
+endif
 
 ASFLAGS := -I include -I $(BUILD_DIR) $(VERSION_ASFLAGS) $(PLATFORM_ASFLAGS)
 
@@ -633,6 +640,7 @@ $(BUILD_DIR)/%.ps.c: %.ps.cg $(FP20COMPILER)
 	@echo >> $@
 
 include xbox/xbox_rules
+include $(NXDK_DIR)/lib/sdl/SDL2/Makefile.xbox
 
 endif
 
